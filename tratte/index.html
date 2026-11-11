@@ -144,6 +144,8 @@
   .snav a.on{color:var(--accent)}
   .snav a.on .pill{background:var(--accent-bg)}
   .snav svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+  [data-nascosto]{display:none !important}
+  .prof{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:6px;background:var(--accent-bg);color:var(--accent);margin-left:6px;vertical-align:2px}
 </style>
 </head>
 <body>
@@ -164,9 +166,9 @@
   <div class="tabs">
     <button data-v="cal" class="on">Calendario</button>
     <button data-v="turni">Turni</button>
-    <button data-v="tratte">Tratti</button>
-    <button data-v="perc">Percorsi</button>
-    <button data-v="loc">Impianti/Loc</button>
+    <button data-v="tratte" data-solo="PDM">Tratti</button>
+    <button data-v="perc" data-solo="PDM">Percorsi</button>
+    <button data-v="loc" id="tabLoc">Impianti/Trazione</button>
   </div>
 
   <!-- TURNI -->
@@ -222,10 +224,20 @@
 
   <!-- LOC -->
   <section class="view" id="v-loc">
-    <h3 class="group" style="margin-top:0">🔧 Impianti di manovra</h3>
+    <div id="abilBox" data-solo="PDT">
+      <h3 class="group" style="margin-top:0">🛡 Abilitazioni PdT</h3>
+      <div id="abilListView"></div>
+    </div>
+    <div class="row" style="align-items:center">
+      <h3 class="group" id="impTitle" style="margin:0">🔧 Impianti</h3>
+      <button class="sm" id="addImpianto">+ Impianto</button>
+    </div>
+    <p class="note" id="impNote" style="margin-top:4px"></p>
     <div id="impListView"></div>
-    <h3 class="group">🚂 Loc</h3>
-    <div id="locList"></div>
+    <div data-solo="PDM PAT-B">
+      <h3 class="group">🚂 Unità di trazione</h3>
+      <div id="locList"></div>
+    </div>
   </section>
 </div>
 
@@ -262,6 +274,13 @@
   <div class="toggle"><input type="checkbox" id="dRest"><label for="dRest">Riposo / ferie / nessuna attività</label></div>
 
   <div id="dWork">
+    <div data-solo="PDT">
+    <h3 class="sec">🛡 Abilitazioni PdT</h3>
+    <div class="checks" id="dAbil"></div>
+    <div class="hint">PdT-A si rinnova anche da sola quando registri una manovra in un impianto.</div>
+    </div>
+
+    <div data-solo="PDM">
     <h3 class="sec">🛤 Linea</h3>
     <label class="l">Percorsi effettuati</label>
     <div class="checks" id="dPerc"></div>
@@ -276,6 +295,8 @@
       <button type="button" id="dNewBtn">Aggiungi</button>
     </div>
 
+    </div>
+
     <h3 class="sec">🔧 Manovra in impianto</h3>
     <div class="inline">
       <input id="dImp" list="impList" placeholder="es. Cervignano Smistamento" autocomplete="off">
@@ -283,12 +304,14 @@
     </div>
     <div class="chips" id="dImpChips"></div>
 
+    <div data-solo="PDM PAT-B">
     <h3 class="sec">🚂 Loc utilizzate</h3>
     <div class="inline" style="margin-top:0">
       <input id="dLoc" list="locNums" placeholder="es. E.494.012" autocomplete="off" style="text-transform:uppercase">
       <button type="button" id="dLocBtn">Aggiungi</button>
     </div>
     <div class="chips" id="dLocChips"></div>
+    </div>
   </div>
 
   <label class="l">Note</label>
@@ -403,19 +426,84 @@
   const findTurno = s => { const k = turnoKey(s); if (!k) return null; const f = turniDef().find(([, t]) => turnoKey(t.nome) === k); return f ? { id: f[0], ...f[1] } : null; };
   function impiantiAll() {
     const s = new Map(); const add = x => { x = clean(x); if (x && !s.has(norm(x))) s.set(norm(x), x); };
+    Object.values(docs).filter(d => d.kind === "impianto").forEach(d => add(d.nome));
     giorni().forEach(([, g]) => (g.impianti || []).forEach(add));
     turniDef().forEach(([, t]) => (t.opzioni || []).forEach(o => (o.impianti || []).forEach(add)));
     return [...s.values()].sort((a, b) => a.localeCompare(b));
   }
   function impInfo(name) {
     const today = todayStr(), k = norm(name);
-    const dates = giorni().map(([, g]) => g).filter(g => g.data <= today && (g.impianti || []).some(x => norm(x) === k)).map(g => g.data).sort();
+    const dates = giorni().map(([, g]) => g).filter(g => g.data <= today && !g.riposo &&
+      ((g.impianti || []).some(x => norm(x) === k) || (isPDM() && stazioniGiorno(g).has(k)))).map(g => g.data).sort();
     const last = dates[dates.length - 1] || null;
     if (!last) return { last:null, scad:null, days:null, st:"none", n:0, dates };
     const scad = addYear(last), days = daysBetween(today, scad);
     return { last, scad, days, st: days < 0 ? "bad" : days <= WARN_DAYS ? "warn" : "ok", n: dates.length, dates };
   }
   const dayId = s => "g" + s;
+
+  // ---------- profilo (qualifica dal foglio Anagrafica: PDM, PAT-B, PDT) ----------
+  // PDM:   tratti di linea, impianti mantenuti anche solo passando con il treno, unità di trazione (3 anni)
+  // PAT-B: badonista puro: impianti mantenuti solo manovrando, unità di trazione (3 anni)
+  // PDT:   abilitazioni PdT-A/B/V, Prova freno, Gancio; impianti mantenuti solo manovrando
+  const PROF_KEY = "tratte_profilo";
+  let profilo = "PDM";
+  try { profilo = localStorage.getItem(PROF_KEY) || "PDM"; } catch {}
+  const isPDM = () => profilo === "PDM";
+  const ABIL = [["A", "PdT-A · Manovra"], ["B", "PdT-B · Formazione"], ["V", "PdT-V · Verifica"], ["PF", "Prova freno"], ["GA", "Gancio"]];
+  const abilNome = c => (ABIL.find(x => x[0] === c) || [c, c])[1];
+  const TRAZ_ANNI = 3;
+  // stazioni toccate dal turno: tutte le località dei percorsi e dei tratti del giorno
+  function stazioniGiorno(g) {
+    const s = new Set();
+    (g.percorsi || []).forEach(id => (docs[id]?.punti || []).forEach(x => s.add(norm(x))));
+    (g.tratte || []).forEach(id => { const t = docs[id]; if (t) { if (t.da) s.add(norm(t.da)); if (t.a) s.add(norm(t.a)); } });
+    return s;
+  }
+  function stato(last, anni) {
+    if (!last) return { last: null, scad: null, days: null, st: "none" };
+    let scad = last; for (let i = 0; i < anni; i++) scad = addYear(scad);
+    const days = daysBetween(todayStr(), scad);
+    return { last, scad, days, st: days < 0 ? "bad" : days <= WARN_DAYS ? "warn" : "ok" };
+  }
+  function abilInfo(code) {
+    const today = todayStr();
+    const dates = giorni().map(([, g]) => g).filter(g => g.data <= today && !g.riposo &&
+      ((g.abil || []).includes(code) || (code === "A" && (g.impianti || []).length))).map(g => g.data).sort();
+    return { ...stato(dates[dates.length - 1] || null, 1), n: dates.length };
+  }
+  function applicaProfilo() {
+    document.querySelectorAll("[data-solo]").forEach(el => {
+      const ok = el.dataset.solo.split(" ").includes(profilo);
+      if (ok) el.removeAttribute("data-nascosto"); else el.setAttribute("data-nascosto", "");
+    });
+    const on = document.querySelector(".tabs button.on");
+    if (on && on.hasAttribute("data-nascosto")) document.querySelector('.tabs button[data-v="cal"]').click();
+    $("tabLoc").textContent = profilo === "PDT" ? "Abilitazioni" : "Impianti/Trazione";
+    $("impTitle").textContent = profilo === "PDT" ? "🔧 Impianti di manovra" : "🔧 Impianti";
+    $("impNote").textContent = isPDM()
+      ? "Un impianto si mantiene manovrando o passando con il treno in quella località. Aggiungi qui le località del tuo certificato complementare."
+      : "Un impianto si mantiene solo manovrando in quella località.";
+    const h1 = document.querySelector("header h1");
+    if (h1) h1.innerHTML = `Mantenimento tratte<span class="prof">${esc(profilo)}</span>`;
+  }
+  async function caricaProfilo() {
+    let sess = null;
+    try { sess = localStorage.getItem("turni_sessione"); } catch {}
+    if (!sess) return;
+    try {
+      const res = await fetch("https://script.google.com/macros/s/AKfycbxXFsHs_qdfjbzpO2gzpDC33Hm-tPx8yutP_fIA27ry6zeuOX25DHGc_6vMcOTqWkPfHw/exec", {
+        method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({ source: "miniapp", action: "profilo", params: {}, sessione: sess })
+      });
+      const j = await res.json();
+      if (j.ok && j.dati.qualifica && j.dati.qualifica !== profilo) {
+        profilo = j.dati.qualifica;
+        try { localStorage.setItem(PROF_KEY, profilo); } catch {}
+        applicaProfilo(); renderAll();
+      }
+    } catch {}
+  }
   const segName = t => t.da && t.a ? `${t.da} – ${t.a}` : (t.nome || "—");
 
   function segIndex() { const m = new Map(); tratte().forEach(([id, t]) => { if (t.da && t.a) m.set(segKey(t.da, t.a), id); }); return m; }
@@ -751,8 +839,8 @@
       if (i === 35 && d.getMonth() !== cur.getMonth()) break;
       const s = iso(d), g = docs[dayId(s)];
       const cls = ["day", d.getMonth() !== cur.getMonth() ? "out" : "", s === today ? "today" : "", g && g.riposo ? "rest" : ""].join(" ");
-      const n = g ? (g.tratte || []).length : 0, ni = g ? (g.impianti || []).length : 0;
-      const cnt = [n ? plural(n, "tratto", "tratti") : "", ni ? "🔧 manovra" : ""].filter(Boolean).join(" · ");
+      const n = g ? (g.tratte || []).length : 0, ni = g ? (g.impianti || []).length : 0, na = g ? (g.abil || []).length : 0;
+      const cnt = [n ? plural(n, "tratto", "tratti") : "", ni ? "🔧 manovra" : "", na ? "🛡 " + na : ""].filter(Boolean).join(" · ");
       html += `<button type="button" class="${cls}" data-d="${s}"><span class="n">${d.getDate()}</span>` +
         (g ? `<span class="t">${esc(g.turno || (g.riposo ? "Riposo" : ni && !n ? "Manovra" : "Turno"))}</span>` +
              (cnt ? `<span class="c">${cnt}</span>` : "") : suggerimentoFoglio(s)) + `</button>`;
@@ -780,7 +868,15 @@
 
   // ---------- day dialog ----------
   const dDay = $("dlgDay");
-  let dayDate = null, sel = new Set(), selP = new Set(), locs = [], imps = [], variante = null;
+  let dayDate = null, sel = new Set(), selP = new Set(), locs = [], imps = [], variante = null, abil = new Set();
+  function renderAbil() {
+    $("dAbil").innerHTML = ABIL.map(([c, n]) => `<label class="chk ${abil.has(c) ? "on" : ""}"><input type="checkbox" data-ab="${c}" ${abil.has(c) ? "checked" : ""}><div>${esc(n)}</div></label>`).join("");
+  }
+  $("dAbil").addEventListener("change", e => {
+    const c = e.target.dataset.ab; if (!c) return;
+    if (e.target.checked) abil.add(c); else abil.delete(c);
+    e.target.closest(".chk").classList.toggle("on", e.target.checked);
+  });
 
   function openDay(s) {
     if (readOnly) return;
@@ -796,6 +892,7 @@
     locs = [...(g.loc || [])];
     imps = [...(g.impianti || [])];
     variante = g.variante || null;
+    abil = new Set(g.abil || []);
     $("dImp").value = "";
     $("dDel").style.display = docs[dayId(s)] ? "" : "none";
     const tn = new Map();
@@ -805,7 +902,7 @@
     $("locNums").innerHTML = allLocNums().map(n => `<option value="${esc(n)}">`).join("");
     const def = findTurno(g.turno || "");
     renderVar(def);
-    syncRest(); renderDayPerc(); renderChecks(); renderLocChips(); renderImpChips();
+    syncRest(); renderDayPerc(); renderChecks(); renderLocChips(); renderImpChips(); renderAbil();
     dDay.showModal();
     if (!docs[dayId(s)] && turniFoglio[s]) precompilaDaFoglio(turniFoglio[s]);
   }
@@ -906,8 +1003,9 @@
     selP = new Set((o.percorsi || []).filter(id => docs[id]));
     sel = new Set([...selP].flatMap(id => percSegs(docs[id])));
     imps = [...(o.impianti || [])];
+    abil = new Set(o.abil || []);
     variante = i ? o.nome : null;
-    renderVar(def); renderDayPerc(); renderChecks(); renderImpChips();
+    renderVar(def); renderDayPerc(); renderChecks(); renderImpChips(); renderAbil();
   }
   $("dVar").addEventListener("click", e => {
     const b = e.target.closest("button[data-vi]"); if (!b) return;
@@ -915,8 +1013,8 @@
     applyOpt(def, +b.dataset.vi);
     $("dHint").textContent = `Caricata: ${def.opzioni[+b.dataset.vi].nome || "variazione"}. Controlla e modifica se serve.`;
   });
-  const dayEmpty = () => !sel.size && !selP.size && !imps.length;
-  const optSummary = o => [...(o.percorsi || []).map(id => docs[id]?.nome).filter(Boolean), ...(o.impianti || []).map(x => "🔧 " + x)].join(" + ");
+  const dayEmpty = () => !sel.size && !selP.size && !imps.length && !abil.size;
+  const optSummary = o => [...(o.percorsi || []).map(id => docs[id]?.nome).filter(Boolean), ...(o.impianti || []).map(x => "🔧 " + x), ...(o.abil || []).map(c => "🛡 " + abilNome(c))].join(" + ");
 
   // turno typed: load programmed turno, else copy from previous same turno
   $("dTurno").addEventListener("change", () => {
@@ -935,7 +1033,7 @@
       return;
     }
     renderVar(null);
-    const prev = giorni().map(([, g]) => g).filter(g => turnoKey(g.turno) === turnoKey(t) && g.data !== dayDate && ((g.tratte || []).length || (g.percorsi || []).length || (g.impianti || []).length))
+    const prev = giorni().map(([, g]) => g).filter(g => turnoKey(g.turno) === turnoKey(t) && g.data !== dayDate && ((g.tratte || []).length || (g.percorsi || []).length || (g.impianti || []).length || (g.abil || []).length))
       .sort((a, b) => a.data < b.data ? 1 : -1)[0];
     const saveLink = ` <a href="#" id="dMkTurno">Salva come turno programmato</a>`;
     const bindMk = () => { const a = $("dMkTurno"); if (a) a.onclick = ev => { ev.preventDefault(); makeTurnoFromDay(); }; };
@@ -944,7 +1042,8 @@
       selP = new Set((prev.percorsi || []).filter(id => docs[id]));
       sel = new Set((prev.tratte || []).filter(id => docs[id]));
       imps = [...(prev.impianti || [])];
-      renderDayPerc(); renderChecks(); renderImpChips();
+      abil = new Set(prev.abil || []);
+      renderDayPerc(); renderChecks(); renderImpChips(); renderAbil();
     };
     if (dayEmpty()) { apply(); $("dHint").innerHTML = `Copiato dal ${fmt(prev.data)} (stesso turno). Controlla e modifica se serve.${saveLink}`; bindMk(); }
     else {
@@ -956,9 +1055,9 @@
 
   function makeTurnoFromDay() {
     const nome = clean($("dTurno").value); if (!nome) return;
-    if (!selP.size && !imps.length) { toast("Seleziona prima almeno un percorso o un impianto di manovra."); return; }
+    if (!selP.size && !imps.length && !abil.size) { toast("Seleziona prima almeno un percorso, un impianto o un'abilitazione."); return; }
     const id = newId("u");
-    save(id, { kind: "turno", nome, note: "", opzioni: [{ nome: "Standard", percorsi: [...selP], impianti: [...imps] }] });
+    save(id, { kind: "turno", nome, note: "", opzioni: [{ nome: "Standard", percorsi: [...selP], impianti: [...imps], abil: [...abil] }] });
     renderVar(findTurno(nome));
     $("dHint").textContent = `Turno ${nome} salvato tra i turni programmati. Puoi aggiungere variazioni nella scheda Turni.`;
   }
@@ -975,12 +1074,12 @@
       percorsi: riposo ? [] : [...selP].filter(id => docs[id]),
       tratte: riposo ? [] : [...sel].filter(id => docs[id]),
       impianti: riposo ? [] : imps,
-      loc: riposo ? [] : locs, note: $("dNote").value.trim() };
+      loc: riposo ? [] : locs, abil: riposo ? [] : [...abil], note: $("dNote").value.trim() };
     if (!riposo && variante && findTurno(data.turno)) data.variante = variante;
     dDay.close();
-    if (!data.turno && !data.riposo && !data.tratte.length && !data.impianti.length && !data.loc.length && !data.note) { if (docs[dayId(dayDate)]) remove(dayId(dayDate)); return; }
+    if (!data.turno && !data.riposo && !data.tratte.length && !data.impianti.length && !data.loc.length && !data.abil.length && !data.note) { if (docs[dayId(dayDate)]) remove(dayId(dayDate)); return; }
     save(dayId(dayDate), data);
-    const parts = [data.tratte.length ? plural(data.tratte.length, "tratto rinnovato", "tratti rinnovati") : "", data.impianti.length ? plural(data.impianti.length, "impianto", "impianti") + " di manovra" : ""].filter(Boolean);
+    const parts = [data.tratte.length ? plural(data.tratte.length, "tratto rinnovato", "tratti rinnovati") : "", data.impianti.length ? plural(data.impianti.length, "impianto", "impianti") + " di manovra" : "", data.abil.length ? plural(data.abil.length, "abilitazione", "abilitazioni") : ""].filter(Boolean);
     toast(parts.length ? `Salvato · ${parts.join(" · ")}` : "Giorno salvato");
   });
   $("dDel").onclick = () => {
@@ -1063,7 +1162,7 @@
     $("tuTitle").textContent = id ? "Modifica turno" : "Nuovo turno";
     $("tuNome").value = t.nome || ""; $("tuNote").value = t.note || "";
     tuOpts = id ? structuredClone(t.opzioni || []) : [];
-    if (!tuOpts.length) tuOpts.push({ nome: "Standard", percorsi: [], impianti: [] });
+    if (!tuOpts.length) tuOpts.push({ nome: "Standard", percorsi: [], impianti: [], abil: [] });
     $("tuDel").style.display = id ? "" : "none";
     renderTuOpts(); dTu.showModal();
   }
@@ -1075,12 +1174,17 @@
         ${i ? `<button type="button" class="ghost" data-orm="${i}" aria-label="Rimuovi variazione">×</button>` : ""}
       </div>
       <div class="meta" style="margin-top:4px">${i ? "Variazione" : "Programmazione standard"}</div>
+      ${profilo === "PDT" ? `<label class="l">Abilitazioni PdT</label>
+      <div class="checks">${ABIL.map(([c, n]) => { const on = (o.abil || []).includes(c);
+        return `<label class="chk ${on ? "on" : ""}"><input type="checkbox" data-oab="${i}" data-code="${c}" ${on ? "checked" : ""}><div>${esc(n)}</div></label>`; }).join("")}</div>` : ""}
+      <div ${isPDM() ? "" : "data-nascosto"}>
       <label class="l">Percorsi</label>
       <div class="checks">${plist.length ? plist.map(([pid, p]) => {
         const on = (o.percorsi || []).includes(pid);
         return `<label class="chk ${on ? "on" : ""}"><input type="checkbox" data-op="${i}" data-pid="${pid}" ${on ? "checked" : ""}><div><div>${esc(p.nome)}</div><div class="meta">${esc((p.punti || []).join(" → "))}</div></div></label>`;
       }).join("") : `<div class="meta" style="padding:10px">Nessun percorso: creane uno qui sotto.</div>`}</div>
       <div class="inline"><button type="button" data-onew="${i}">+ Nuovo percorso</button></div>
+      </div>
       <label class="l">Manovra in impianto</label>
       <div class="inline" style="margin-top:0"><input data-oimp="${i}" list="impList" placeholder="es. Cervignano Smistamento"><button type="button" data-oimpadd="${i}">Aggiungi</button></div>
       <div class="chips">${(o.impianti || []).map((x, j) => `<span class="chip">🔧 ${esc(x)}<button type="button" data-oimprm="${i}:${j}">×</button></span>`).join("")}</div>
@@ -1096,6 +1200,13 @@
   }
   $("tuOpts").addEventListener("input", e => { const i = e.target.dataset.on; if (i !== undefined) tuOpts[+i].nome = e.target.value; });
   $("tuOpts").addEventListener("change", e => {
+    if (e.target.dataset.oab !== undefined) {
+      const o = tuOpts[+e.target.dataset.oab], c = e.target.dataset.code;
+      o.abil = (o.abil || []).filter(x => x !== c);
+      if (e.target.checked) o.abil.push(c);
+      e.target.closest(".chk").classList.toggle("on", e.target.checked);
+      return;
+    }
     const i = e.target.dataset.op; if (i === undefined) return;
     const o = tuOpts[+i], pid = e.target.dataset.pid;
     o.percorsi = (o.percorsi || []).filter(x => x !== pid);
@@ -1110,7 +1221,7 @@
     else if (b.dataset.oimpadd !== undefined) tuAddImp(+b.dataset.oimpadd);
     else if (b.dataset.oimprm) { const [i, j] = b.dataset.oimprm.split(":").map(Number); tuOpts[i].impianti.splice(j, 1); renderTuOpts(); }
   });
-  $("tuAddOpt").onclick = () => { tuOpts.push({ nome: "", percorsi: [], impianti: [] }); renderTuOpts(); const ins = $("tuOpts").querySelectorAll("input[data-on]"); ins[ins.length-1].focus(); };
+  $("tuAddOpt").onclick = () => { tuOpts.push({ nome: "", percorsi: [], impianti: [], abil: [] }); renderTuOpts(); const ins = $("tuOpts").querySelectorAll("input[data-on]"); ins[ins.length-1].focus(); };
   $("tuCancel").onclick = () => dTu.close();
   $("formTurno").addEventListener("submit", e => {
     e.preventDefault();
@@ -1265,18 +1376,42 @@
   // ---------- loc view ----------
   function renderImpianti() {
     const names = impiantiAll();
-    if (!names.length) { $("impListView").innerHTML = `<div class="empty" style="padding:20px">Nessun impianto registrato.<br>Aggiungili nei giorni del calendario o nei turni.</div>`; return; }
+    if (!names.length) { $("impListView").innerHTML = `<div class="empty" style="padding:20px">Nessun impianto registrato.<br>Aggiungili con <b>+ Impianto</b>, nei giorni del calendario o nei turni.</div>`; return; }
+    const manuali = new Map(Object.entries(docs).filter(([, d]) => d.kind === "impianto").map(([id, d]) => [norm(d.nome), id]));
     const items = names.map(n => ({ n, i: impInfo(n) }))
       .sort((a, b) => a.i.scad === b.i.scad ? a.n.localeCompare(b.n) : !a.i.scad ? -1 : !b.i.scad ? 1 : a.i.scad < b.i.scad ? -1 : 1);
     $("impListView").innerHTML = items.map(({ n, i }) => `<div class="card ${i.st}">
       <div class="row"><div>
         <div class="name">${esc(n)}</div>
-        <div class="meta">Ultima manovra: <b>${fmt(i.last)}</b> · Scade: <b>${fmt(i.scad)}</b>${i.n ? ` · ${plural(i.n, "giorno", "giorni")}` : ""}</div>
-      </div><span class="badge ${i.st}">${badgeText(i).replace("Mai effettuato", "Mai fatta")}</span></div>
+        <div class="meta">${isPDM() ? "Ultimo passaggio/manovra" : "Ultima manovra"}: <b>${fmt(i.last)}</b> · Scade: <b>${fmt(i.scad)}</b>${i.n ? ` · ${plural(i.n, "giorno", "giorni")}` : ""}</div>
+      </div><span class="badge ${i.st}">${badgeText(i).replace("Mai effettuato", "Mai fatto")}</span></div>
+      ${manuali.has(norm(n)) ? `<div class="actions"><button class="ghost sm" data-imprm="${manuali.get(norm(n))}">Togli dall'elenco</button></div>` : ""}
     </div>`).join("");
   }
 
+  function renderAbilView() {
+    if (profilo !== "PDT") { $("abilListView").innerHTML = ""; return; }
+    $("abilListView").innerHTML = ABIL.map(([c, n]) => { const i = abilInfo(c); return `<div class="card ${i.st}">
+      <div class="row"><div><div class="name">${esc(n)}</div>
+        <div class="meta">Ultima volta: <b>${fmt(i.last)}</b> · Scade: <b>${fmt(i.scad)}</b>${i.n ? ` · ${plural(i.n, "giorno", "giorni")}` : ""}</div></div>
+      <span class="badge ${i.st}">${badgeText(i).replace("Mai effettuato", "Mai fatta")}</span></div></div>`; }).join("") +
+      `<p class="note">Ogni abilitazione scade 1 anno dopo l'ultima volta che l'hai esercitata, in qualsiasi impianto. PdT-A si rinnova con ogni manovra registrata.</p>`;
+  }
+  $("impListView").addEventListener("click", e => {
+    const b = e.target.closest("button[data-imprm]"); if (!b) return;
+    const id = b.dataset.imprm;
+    confirmDlg("Togliere l'impianto dall'elenco?", `“${esc(docs[id].nome)}” non verrà più mostrato, a meno che compaia nei giorni o nei turni. Lo storico resta.`, "Togli", () => remove(id));
+  });
+  $("addImpianto").onclick = () => {
+    if (readOnly) return;
+    const v = clean(prompt("Nome dell'impianto o della località (es. Udine):") || "");
+    if (!v) return;
+    if (impiantiAll().some(x => norm(x) === norm(v))) { toast("Impianto già presente."); return; }
+    save(newId("i"), { kind: "impianto", nome: v });
+  };
+
   function renderLoc() {
+    renderAbilView();
     renderImpianti();
     const byNum = new Map();
     giorni().forEach(([, g]) => (g.loc || []).forEach(n => {
@@ -1293,13 +1428,21 @@
       const last = all[all.length - 1];
       const ago = last ? daysBetween(last, today) : null;
       const days = new Set(all).size;
+      const si = stato(last || null, TRAZ_ANNI);
       arr.sort((a, b) => a.dates[a.dates.length-1] < b.dates[b.dates.length-1] ? 1 : -1);
-      return `<div class="card none" style="border-left-color:var(--accent)">
-        <div class="row"><div class="name">${esc(tipo)}</div><span class="badge none">${last ? (ago === 0 ? "oggi" : `${ago} gg fa`) : "—"}</span></div>
-        <div class="meta">Ultimo utilizzo: <b>${fmt(last)}</b> · ${plural(days, "giorno", "giorni")} di utilizzo · ${plural(arr.length, "macchina", "macchine")}</div>
+      return `<div class="card ${si.st}">
+        <div class="row"><div class="name">${esc(tipo)}</div><span class="badge ${si.st}">${si.st === "none" ? "—" : badgeText(si)}</span></div>
+        <div class="meta">Ultimo utilizzo: <b>${fmt(last)}</b>${last ? ` (${ago === 0 ? "oggi" : `${ago} gg fa`})` : ""} · Scade: <b>${fmt(si.scad)}</b> · ${plural(days, "giorno", "giorni")} · ${plural(arr.length, "macchina", "macchine")}</div>
         <div class="hist">${arr.map(x => `<span>${esc(x.n)} · ${fmt(x.dates[x.dates.length-1])}</span>`).join("")}</div>
       </div>`;
-    }).join("") + `<p class="note">Le loc sono raggruppate per gruppo/tipo ricavato dalla matricola (es. E.494.012 → E.494). Puoi inserire anche solo il gruppo, es. E193.</p>`;
+    }).join("") + `<p class="note">Le loc sono raggruppate per gruppo/tipo ricavato dalla matricola (es. E.494.012 → E.494). Puoi inserire anche solo il gruppo, es. E193. Ogni serie scade ${TRAZ_ANNI} anni dopo l'ultimo utilizzo.</p>`;
+  }
+
+  function serieTrazione() {
+    const today = todayStr(), m = new Map();
+    giorni().forEach(([, g]) => { if (g.data > today) return; (g.loc || []).forEach(n => { const t = locTipo(n), k = locKey(t);
+      if (!m.has(k) || g.data > m.get(k).last) m.set(k, { tipo: t, last: g.data }); }); });
+    return [...m.values()].map(x => ({ tipo: x.tipo, i: stato(x.last, TRAZ_ANNI) }));
   }
 
   // ---------- confirm / toast ----------
@@ -1314,6 +1457,8 @@
   function exportIcs() {
     const rows = tratte().map(([id, t]) => ({ id, t, i: info(id), nm: segName(t), k: "Tratto" }))
       .concat(impiantiAll().map(n => ({ id: "imp-" + norm(n).replace(/[^a-z0-9]+/g, "-"), i: impInfo(n), nm: n, k: "Impianto" })))
+      .concat(profilo === "PDT" ? ABIL.map(([c, n]) => ({ id: "abil-" + c, i: abilInfo(c), nm: n, k: "Abilitazione" })) : [])
+      .concat(profilo === "PDT" ? [] : serieTrazione().map(x => ({ id: "traz-" + locKey(x.tipo), i: x.i, nm: x.tipo, k: "Trazione" })))
       .filter(x => x.i.scad);
     if (!rows.length) { toast("Nessuna scadenza da esportare."); return; }
     const stamp = new Date().toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
@@ -1334,7 +1479,9 @@
     toast("File calendario creato: aprilo per importare i promemoria");
   }
 
+  applicaProfilo();
   renderAll();
+  caricaProfilo();
   checkBackupReminder();
 })();
 </script>
