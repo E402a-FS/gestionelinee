@@ -1,0 +1,1273 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mantenimento tratte</title>
+<meta name="description" content="Registro turni, tratti di linea, impianti e loc con scadenze di mantenimento">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#1e4fa3">
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Gestione Linee">
+<script src="firebase-config.js"></script>
+<style>
+  :root{
+    --bg:#f6f5f2; --card:#fff; --ink:#1d1d1b; --muted:#6b6a66; --line:#e4e2dc;
+    --ok:#1f7a4d; --ok-bg:#e6f3ec; --warn:#a15c00; --warn-bg:#fdf1de;
+    --bad:#b3261e; --bad-bg:#fbe7e5; --accent:#1e4fa3; --accent-bg:#e7eefb;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#151514; --card:#1f1f1d; --ink:#efeee9; --muted:#a3a19b; --line:#33322f;
+      --ok:#6fcf9c; --ok-bg:#183024; --warn:#f0b35a; --warn-bg:#352812;
+      --bad:#f2847b; --bad-bg:#3a1c19; --accent:#8fb3f5; --accent-bg:#1c2a44; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 -apple-system,system-ui,"Segoe UI",Roboto,sans-serif}
+  .wrap{max-width:760px;margin:0 auto;padding:calc(16px + env(safe-area-inset-top)) calc(14px + env(safe-area-inset-right)) calc(80px + env(safe-area-inset-bottom)) calc(14px + env(safe-area-inset-left))}
+  .hbtns{display:flex;gap:6px}
+  .hbtns button{padding:8px 10px}
+  .banner button{margin-left:8px;padding:3px 10px;font-size:13px}
+  .menu-btn{display:block;width:100%;text-align:left;margin-top:8px;padding:12px}
+  .menu-btn small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+  header{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px}
+  h1{font-size:22px;margin:0}
+  .sub{color:var(--muted);font-size:13px}
+  button{font:inherit;cursor:pointer;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);padding:8px 12px}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  @media (prefers-color-scheme: dark){ button.primary{color:#0f1a2e} }
+  button.ghost{background:transparent;border-color:transparent;color:var(--muted);padding:6px 8px}
+  button.sm{padding:4px 9px;font-size:14px}
+  button:disabled{opacity:.5;cursor:default}
+  .tabs{display:flex;gap:4px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:4px;margin-bottom:14px;overflow-x:auto;scrollbar-width:none}
+  .tabs::-webkit-scrollbar{display:none}
+  .tabs button{flex:1 0 auto;border:0;background:transparent;color:var(--muted);font-weight:600;padding:8px 10px;font-size:14px;white-space:nowrap}
+  .sec{font-size:15px;margin:18px 0 0;padding-top:12px;border-top:1px solid var(--line)}
+  .vchip{border-radius:99px;padding:5px 12px;font-size:14px;font-weight:600}
+  .vchip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  @media (prefers-color-scheme: dark){ .vchip.on{color:#0f1a2e} }
+  .opt{border:1px solid var(--line);border-radius:12px;padding:10px;margin-top:12px;background:var(--bg)}
+  .opt .checks{background:var(--card)}
+  .optline{font-size:13px;margin-top:6px}
+  .optline b{font-weight:600}
+  h3.group{font-size:15px;color:var(--muted);margin:18px 0 8px}
+  .tabs button.on{background:var(--accent-bg);color:var(--accent)}
+  .view{display:none}.view.on{display:block}
+  .summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px;text-align:center;cursor:pointer}
+  .stat b{display:block;font-size:24px}
+  .stat.sel{outline:2px solid var(--accent)}
+  .stat.ok b{color:var(--ok)} .stat.warn b{color:var(--warn)} .stat.bad b{color:var(--bad)}
+  .toolbar{display:flex;gap:8px;margin-bottom:12px}
+  .toolbar input{flex:1}
+  input,textarea,select{font:inherit;width:100%;padding:9px 10px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:10px;border-left-width:6px}
+  .card.ok{border-left-color:var(--ok)} .card.warn{border-left-color:var(--warn)} .card.bad{border-left-color:var(--bad)} .card.none{border-left-color:var(--line)}
+  .row{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+  .name{font-weight:600;font-size:17px}
+  .meta{color:var(--muted);font-size:13px;margin-top:2px}
+  .badge{font-size:12px;font-weight:600;padding:4px 8px;border-radius:99px;white-space:nowrap}
+  .badge.ok{background:var(--ok-bg);color:var(--ok)} .badge.warn{background:var(--warn-bg);color:var(--warn)}
+  .badge.bad{background:var(--bad-bg);color:var(--bad)} .badge.none{background:var(--line);color:var(--muted)}
+  .actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .hist{margin-top:8px;font-size:13px;color:var(--muted)}
+  .hist span{display:inline-flex;align-items:center;gap:2px;background:var(--bg);border-radius:6px;padding:2px 6px;margin:2px 4px 2px 0}
+  .hist span button{border:0;background:none;padding:0 2px;color:var(--muted);font-size:13px}
+  .empty{text-align:center;color:var(--muted);padding:40px 10px}
+  .note{font-size:12px;color:var(--muted);margin-top:18px;text-align:center}
+  .banner{font-size:13px;padding:8px 10px;border-radius:10px;background:var(--warn-bg);color:var(--warn);margin-bottom:12px;display:none}
+  .path{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:6px}
+  .path .seg{font-size:12px;padding:3px 7px;border-radius:6px;font-weight:600}
+  .path .seg.ok{background:var(--ok-bg);color:var(--ok)} .path .seg.warn{background:var(--warn-bg);color:var(--warn)}
+  .path .seg.bad{background:var(--bad-bg);color:var(--bad)} .path .seg.none{background:var(--line);color:var(--muted)}
+  .path .stn{font-size:13px}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+  .chip{display:inline-flex;align-items:center;gap:4px;background:var(--accent-bg);color:var(--accent);border-radius:99px;padding:4px 6px 4px 10px;font-size:14px;font-weight:600}
+  .chip button{border:0;background:none;color:inherit;padding:0 4px;font-size:15px}
+
+  /* calendar */
+  .calhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+  .calhead h2{margin:0;font-size:18px;text-transform:capitalize}
+  .grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+  .dow{font-size:12px;color:var(--muted);text-align:center;padding:4px 0;font-weight:600}
+  .day{background:var(--card);border:1px solid var(--line);border-radius:10px;min-height:68px;padding:5px;cursor:pointer;display:flex;flex-direction:column;gap:2px;overflow:hidden;text-align:left}
+  .day.out{opacity:.35}
+  .day.today{outline:2px solid var(--accent)}
+  .day .n{font-size:13px;font-weight:600}
+  .day .t{font-size:11px;font-weight:600;background:var(--accent-bg);color:var(--accent);border-radius:5px;padding:1px 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .day .c{font-size:11px;color:var(--muted)}
+  .day.rest .t{background:var(--line);color:var(--muted)}
+  @media (max-width:420px){ .day{min-height:58px;padding:4px} .day .c{display:none} .tabs button{font-size:13px} }
+  .daylist{margin-top:16px}
+  .dayrow{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px;cursor:pointer}
+
+  dialog{border:none;border-radius:16px;padding:0;max-width:500px;width:calc(100% - 20px);max-height:calc(100% - 20px);background:var(--card);color:var(--ink)}
+  dialog::backdrop{background:rgba(0,0,0,.4)}
+  .dlg{padding:18px}
+  .dlg h2{margin:0 0 4px;font-size:18px}
+  .dlg label.l{display:block;font-size:13px;color:var(--muted);margin:14px 0 4px;font-weight:600}
+  .dlg .btns{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;flex-wrap:wrap}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .checks{max-height:240px;overflow:auto;border:1px solid var(--line);border-radius:10px;margin-top:6px}
+  .chk{display:flex;align-items:center;gap:10px;padding:9px 10px;border-bottom:1px solid var(--line);cursor:pointer}
+  .chk:last-child{border-bottom:0}
+  .chk input{width:20px;height:20px;flex:none;margin:0}
+  .chk .meta{margin:0}
+  .chk.on{background:var(--accent-bg)}
+  .inline{display:flex;gap:6px;margin-top:8px}
+  .inline input{flex:1}
+  .hint{font-size:12px;color:var(--accent);margin-top:6px}
+  .toggle{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:14px}
+  .toggle input{width:18px;height:18px}
+  .pts{display:flex;flex-direction:column;gap:6px;margin-top:6px}
+  .pt{display:flex;gap:4px;align-items:center}
+  .pt .i{width:22px;text-align:center;color:var(--muted);font-size:13px;flex:none}
+  .pt input{flex:1}
+  .pt button{padding:6px 8px;flex:none}
+  .preview{font-size:13px;margin-top:10px;background:var(--bg);border-radius:10px;padding:8px 10px}
+  .preview div{padding:2px 0}
+  .new{color:var(--accent);font-weight:600}
+  .toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 14px;border-radius:10px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:10}
+  .toast.show{opacity:1}
+  /* ---------- Barra della suite Gestione Linee ---------- */
+  .wrap{padding-bottom:calc(96px + env(safe-area-inset-bottom))}
+  .snav{position:fixed;left:0;right:0;bottom:0;z-index:9;display:flex;justify-content:space-around;
+    padding:8px 6px calc(8px + env(safe-area-inset-bottom));background:var(--card);border-top:1px solid var(--line)}
+  .snav a{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px;font-weight:600;color:var(--muted);text-decoration:none;padding:4px 0}
+  .snav .pill{width:46px;height:30px;border-radius:15px;display:grid;place-items:center}
+  .snav a.on{color:var(--accent)}
+  .snav a.on .pill{background:var(--accent-bg)}
+  .snav svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Mantenimento tratte</h1>
+      <div class="sub" id="storageInfo">Caricamento…</div>
+    </div>
+    <div class="hbtns">
+      <button id="installBtn" style="display:none" title="Installa l'app">⬇︎ Installa</button>
+      <button id="menuBtn" title="Backup, esportazione, installazione" aria-label="Menu">☰</button>
+    </div>
+  </header>
+
+  <div class="banner" id="banner"></div>
+
+  <div class="tabs">
+    <button data-v="cal" class="on">Calendario</button>
+    <button data-v="turni">Turni</button>
+    <button data-v="tratte">Tratti</button>
+    <button data-v="perc">Percorsi</button>
+    <button data-v="loc">Impianti/Loc</button>
+  </div>
+
+  <!-- TURNI -->
+  <section class="view" id="v-turni">
+    <div class="toolbar">
+      <input id="searchT" placeholder="Cerca turno…" autocomplete="off">
+      <button class="primary" id="addTurno">+ Turno</button>
+    </div>
+    <div id="turniListView"></div>
+    <p class="note">Definisci una volta la programmazione di ogni turno (percorso standard e variazioni, impianti di manovra).<br>Quando scrivi il numero del turno nel calendario, viene caricata in automatico.</p>
+  </section>
+
+  <!-- CALENDAR -->
+  <section class="view on" id="v-cal">
+    <div class="calhead">
+      <button id="prevM" aria-label="Mese precedente">‹</button>
+      <h2 id="monthTitle"></h2>
+      <button id="nextM" aria-label="Mese successivo">›</button>
+    </div>
+    <div class="grid" id="calGrid"></div>
+    <div class="row" style="margin-top:10px">
+      <button id="goToday" class="ghost">Oggi</button>
+      <button class="primary" id="addToday">+ Turno di oggi</button>
+    </div>
+    <div class="daylist" id="dayList"></div>
+  </section>
+
+  <!-- TRATTI -->
+  <section class="view" id="v-tratte">
+    <div class="summary">
+      <div class="stat bad" data-f="bad"><b id="nBad">0</b>Scaduti</div>
+      <div class="stat warn" data-f="warn"><b id="nWarn">0</b>In scadenza</div>
+      <div class="stat ok" data-f="ok"><b id="nOk">0</b>Validi</div>
+    </div>
+    <div class="toolbar">
+      <input id="search" placeholder="Cerca località o tratto…" autocomplete="off">
+      <button class="primary" id="addBtn">+ Tratto</button>
+    </div>
+    <div id="list"></div>
+    <p class="note">Ogni tratto è tra due località consecutive e vale in entrambe le direzioni.<br>Scadenza = ultima effettuazione + 1 anno · "In scadenza" = meno di <span id="warnDays">60</span> giorni.</p>
+  </section>
+
+  <!-- PERCORSI -->
+  <section class="view" id="v-perc">
+    <div class="toolbar">
+      <input id="searchP" placeholder="Cerca percorso…" autocomplete="off">
+      <button class="primary" id="addPerc">+ Percorso</button>
+    </div>
+    <div id="percList"></div>
+    <p class="note">Un percorso è una sequenza di località (es. Cervignano Smist. → Mestre → Treviso C.le → … → Verona P.V.).<br>L'app lo spezza nei tratti elementari: quelli già esistenti vengono riusati.</p>
+  </section>
+
+  <!-- LOC -->
+  <section class="view" id="v-loc">
+    <h3 class="group" style="margin-top:0">🔧 Impianti di manovra</h3>
+    <div id="impListView"></div>
+    <h3 class="group">🚂 Loc</h3>
+    <div id="locList"></div>
+  </section>
+</div>
+
+<datalist id="stazList"></datalist>
+<datalist id="turniList"></datalist>
+<datalist id="locNums"></datalist>
+<datalist id="impList"></datalist>
+
+<!-- TURNO -->
+<dialog id="dlgTurno"><form class="dlg" id="formTurno">
+  <h2 id="tuTitle">Nuovo turno</h2>
+  <label class="l">Numero / nome turno *</label>
+  <input id="tuNome" required placeholder="es. 764" autocomplete="off">
+  <label class="l">Note</label>
+  <input id="tuNote" placeholder="es. merci, orario, deposito…">
+  <div id="tuOpts"></div>
+  <div class="inline"><button type="button" id="tuAddOpt">+ Aggiungi variazione</button></div>
+  <div class="btns">
+    <button type="button" class="ghost" id="tuDel" style="margin-right:auto;color:var(--bad);display:none">Elimina</button>
+    <button type="button" id="tuCancel">Annulla</button>
+    <button type="submit" class="primary">Salva</button>
+  </div>
+</form></dialog>
+
+<!-- DAY -->
+<dialog id="dlgDay"><form class="dlg" id="formDay">
+  <h2 id="dayTitle" style="text-transform:capitalize"></h2>
+  <div class="sub">Turno, linea, manovra e loc del giorno</div>
+
+  <label class="l">Turno</label>
+  <input id="dTurno" list="turniList" placeholder="es. 764, Riserva…" autocomplete="off">
+  <div class="hint" id="dHint"></div>
+  <div class="chips" id="dVar"></div>
+  <div class="toggle"><input type="checkbox" id="dRest"><label for="dRest">Riposo / ferie / nessuna attività</label></div>
+
+  <div id="dWork">
+    <h3 class="sec">🛤 Linea</h3>
+    <label class="l">Percorsi effettuati</label>
+    <div class="checks" id="dPerc"></div>
+    <div class="inline"><button type="button" id="dNewPerc">+ Nuovo percorso</button></div>
+
+    <label class="l">Tratti percorsi <span id="dCount" style="font-weight:400"></span></label>
+    <input id="dFilter" placeholder="Filtra…" autocomplete="off">
+    <div class="checks" id="dChecks"></div>
+    <div class="inline">
+      <input id="dNewDa" list="stazList" placeholder="Da">
+      <input id="dNewA" list="stazList" placeholder="A">
+      <button type="button" id="dNewBtn">Aggiungi</button>
+    </div>
+
+    <h3 class="sec">🔧 Manovra in impianto</h3>
+    <div class="inline">
+      <input id="dImp" list="impList" placeholder="es. Cervignano Smistamento" autocomplete="off">
+      <button type="button" id="dImpBtn">Aggiungi</button>
+    </div>
+    <div class="chips" id="dImpChips"></div>
+
+    <h3 class="sec">🚂 Loc utilizzate</h3>
+    <div class="inline" style="margin-top:0">
+      <input id="dLoc" list="locNums" placeholder="es. E.494.012" autocomplete="off" style="text-transform:uppercase">
+      <button type="button" id="dLocBtn">Aggiungi</button>
+    </div>
+    <div class="chips" id="dLocChips"></div>
+  </div>
+
+  <label class="l">Note</label>
+  <textarea id="dNote" rows="2" placeholder="Treni, orari…"></textarea>
+  <div class="btns">
+    <button type="button" class="ghost" id="dDel" style="margin-right:auto;color:var(--bad)">Svuota giorno</button>
+    <button type="button" id="dCancel">Annulla</button>
+    <button type="submit" class="primary">Salva</button>
+  </div>
+</form></dialog>
+
+<!-- PERCORSO -->
+<dialog id="dlgPerc"><form class="dlg" id="formPerc">
+  <h2 id="pTitle">Nuovo percorso</h2>
+  <label class="l">Nome (facoltativo)</label>
+  <input id="pNome" placeholder="es. Cervignano – Verona PV via Mestre">
+  <label class="l">Località in ordine</label>
+  <div class="pts" id="pPts"></div>
+  <div class="inline"><button type="button" id="pAddPt">+ Aggiungi località</button></div>
+  <div class="preview" id="pPrev"></div>
+  <div class="btns">
+    <button type="button" class="ghost" id="pDel" style="margin-right:auto;color:var(--bad);display:none">Elimina</button>
+    <button type="button" id="pCancel">Annulla</button>
+    <button type="submit" class="primary">Salva</button>
+  </div>
+</form></dialog>
+
+<!-- TRATTO -->
+<dialog id="dlgTratta"><form class="dlg" id="formTratta">
+  <h2 id="tTitle">Nuovo tratto</h2>
+  <div class="two">
+    <div><label class="l">Da *</label><input id="fDa" list="stazList" required placeholder="Treviso C.le"></div>
+    <div><label class="l">A *</label><input id="fA" list="stazList" required placeholder="Cittadella"></div>
+  </div>
+  <label class="l">Effettuazione da aggiungere a mano (facoltativa)</label>
+  <input id="fData" type="date">
+  <label class="l">Note</label>
+  <textarea id="fNote" rows="2" placeholder="Linea, osservazioni…"></textarea>
+  <div class="btns">
+    <button type="button" class="ghost" id="tDel" style="margin-right:auto;color:var(--bad);display:none">Elimina</button>
+    <button type="button" id="tCancel">Annulla</button>
+    <button type="submit" class="primary">Salva</button>
+  </div>
+</form></dialog>
+
+<dialog id="dlgConfirm"><div class="dlg">
+  <h2 id="cTitle">Conferma</h2>
+  <div id="cText" style="margin-top:8px"></div>
+  <div class="btns">
+    <button type="button" id="cNo">Annulla</button>
+    <button type="button" class="primary" id="cYes" style="background:var(--bad);border-color:var(--bad)">Elimina</button>
+  </div>
+</div></dialog>
+
+<dialog id="dlgMenu"><div class="dlg">
+  <h2>Dati e app</h2>
+  <div class="sub" id="mInfo"></div>
+  <div id="mAccount"></div>
+  <button class="menu-btn" id="mBackup">💾 Scarica backup<small>Salva tutti i dati in un file. Fallo spesso e conservalo (es. su Drive o iCloud).</small></button>
+  <button class="menu-btn" id="mRestore">📂 Ripristina da backup<small>Sostituisce i dati di questo dispositivo con quelli del file.</small></button>
+  <input type="file" id="mFile" accept=".json,application/json" style="display:none">
+  <button class="menu-btn" id="mIcs">📅 Esporta scadenze nel calendario<small>File .ics con promemoria 30 giorni prima e il giorno della scadenza.</small></button>
+  <div id="mInstall" class="preview" style="display:none"></div>
+  <div class="btns"><button type="button" id="mClose">Chiudi</button></div>
+</div></dialog>
+
+<div class="toast" id="toast"></div>
+<!-- Barra della suite: porta alle altre sezioni di Gestione Linee -->
+<nav class="snav" aria-label="Sezioni">
+  <a href="/"><span class="pill"><svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg></span>Home</a>
+  <a href="/#cal"><span class="pill"><svg viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="16.5" rx="3"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/></svg></span>Turni</a>
+  <a href="/tratte/" class="on" aria-current="page"><span class="pill"><svg viewBox="0 0 24 24"><circle cx="6" cy="19" r="2.5"/><circle cx="18" cy="5" r="2.5"/><path d="M8.5 19H16a3.5 3.5 0 0 0 0-7H8a3.5 3.5 0 0 1 0-7h7.5"/></svg></span>Tratte</a>
+  <a href="/#riserve"><span class="pill"><svg viewBox="0 0 24 24"><path d="M12 3 4.5 6v5.5c0 4.6 3.1 8.2 7.5 9.5 4.4-1.3 7.5-4.9 7.5-9.5V6z"/></svg></span>Riserve</a>
+  <a href="/#ferie"><span class="pill"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></span>Ferie</a>
+  <a href="/#altro"><span class="pill"><svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/></svg></span>Altro</a>
+</nav>
+
+
+<script>
+(() => {
+  const WARN_DAYS = 60, MAX_HIST = 60, LS_KEY = "tratte_v1";
+  const $ = id => document.getElementById(id);
+  $("warnDays").textContent = WARN_DAYS;
+
+  // ---------- helpers ----------
+  const pad = n => String(n).padStart(2, "0");
+  const iso = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  const todayStr = () => iso(new Date());
+  const parse = s => { const [y,m,d] = s.split("-").map(Number); return new Date(y, m-1, d); };
+  const fmt = s => s ? parse(s).toLocaleDateString("it-IT", {day:"2-digit", month:"short", year:"numeric"}) : "—";
+  const fmtLong = s => parse(s).toLocaleDateString("it-IT", {weekday:"long", day:"numeric", month:"long", year:"numeric"});
+  const addYear = s => { const d = parse(s); const t = new Date(d.getFullYear()+1, d.getMonth(), d.getDate());
+    if (t.getMonth() !== d.getMonth()) t.setDate(0); return iso(t); };
+  const daysBetween = (a, b) => Math.round((parse(b) - parse(a)) / 86400000);
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const clean = s => String(s || "").trim().replace(/\s+/g, " ");
+  const norm = s => clean(s).toLowerCase();
+  const segKey = (a, b) => [norm(a), norm(b)].sort().join("|");
+  const plural = (n, s, p) => `${n} ${n === 1 ? s : p}`;
+
+  // ---------- data ----------
+  // tratto:   {nome, da, a, note, effettuazioni[]}       (no kind, back-compat)
+  // percorso: {kind:"percorso", nome, punti[]}
+  // giorno:   {kind:"giorno", data, turno, riposo, percorsi[], tratte[], loc[], note}   id "g"+date
+  let docs = {};
+  const tratte = () => Object.entries(docs).filter(([,d]) => !d.kind);
+  const percorsi = () => Object.entries(docs).filter(([,d]) => d.kind === "percorso");
+  const giorni = () => Object.entries(docs).filter(([,d]) => d.kind === "giorno");
+  const turniDef = () => Object.entries(docs).filter(([,d]) => d.kind === "turno");
+  // turno:    {kind:"turno", nome, note, opzioni:[{nome, percorsi[], impianti[]}]}   opzioni[0] = standard
+  const turnoKey = s => norm(s).replace(/^turno\s*/, "").replace(/^n\.?\s*/, "");
+  const findTurno = s => { const k = turnoKey(s); if (!k) return null; const f = turniDef().find(([, t]) => turnoKey(t.nome) === k); return f ? { id: f[0], ...f[1] } : null; };
+  function impiantiAll() {
+    const s = new Map(); const add = x => { x = clean(x); if (x && !s.has(norm(x))) s.set(norm(x), x); };
+    giorni().forEach(([, g]) => (g.impianti || []).forEach(add));
+    turniDef().forEach(([, t]) => (t.opzioni || []).forEach(o => (o.impianti || []).forEach(add)));
+    return [...s.values()].sort((a, b) => a.localeCompare(b));
+  }
+  function impInfo(name) {
+    const today = todayStr(), k = norm(name);
+    const dates = giorni().map(([, g]) => g).filter(g => g.data <= today && (g.impianti || []).some(x => norm(x) === k)).map(g => g.data).sort();
+    const last = dates[dates.length - 1] || null;
+    if (!last) return { last:null, scad:null, days:null, st:"none", n:0, dates };
+    const scad = addYear(last), days = daysBetween(today, scad);
+    return { last, scad, days, st: days < 0 ? "bad" : days <= WARN_DAYS ? "warn" : "ok", n: dates.length, dates };
+  }
+  const dayId = s => "g" + s;
+  const segName = t => t.da && t.a ? `${t.da} – ${t.a}` : (t.nome || "—");
+
+  function segIndex() { const m = new Map(); tratte().forEach(([id, t]) => { if (t.da && t.a) m.set(segKey(t.da, t.a), id); }); return m; }
+  function percSegs(p) {
+    const idx = segIndex(), out = [], pts = (p.punti || []).map(clean).filter(Boolean);
+    for (let i = 0; i < pts.length - 1; i++) { if (norm(pts[i]) === norm(pts[i+1])) continue; const id = idx.get(segKey(pts[i], pts[i+1])); if (id) out.push(id); }
+    return out;
+  }
+  function stations() {
+    const s = new Map();
+    const add = x => { x = clean(x); if (x && !s.has(norm(x))) s.set(norm(x), x); };
+    tratte().forEach(([, t]) => { add(t.da); add(t.a); });
+    percorsi().forEach(([, p]) => (p.punti || []).forEach(add));
+    return [...s.values()].sort((a, b) => a.localeCompare(b));
+  }
+
+  function datesFor(id) {
+    const m = new Map();
+    (docs[id]?.effettuazioni || []).forEach(d => m.set(d, "manuale"));
+    giorni().forEach(([, g]) => { if ((g.tratte || []).includes(id)) m.set(g.data, g.turno || "turno"); });
+    return m;
+  }
+  function info(id) {
+    const today = todayStr();
+    const dates = [...datesFor(id).keys()].filter(d => d <= today).sort();
+    const last = dates[dates.length - 1] || null;
+    if (!last) return { last:null, scad:null, days:null, st:"none" };
+    const scad = addYear(last), days = daysBetween(today, scad);
+    return { last, scad, days, st: days < 0 ? "bad" : days <= WARN_DAYS ? "warn" : "ok" };
+  }
+  const badgeText = i => i.st === "none" ? "Mai effettuato" : i.st === "bad" ? `Scaduto da ${-i.days} gg` : i.days === 0 ? "Scade oggi" : `${i.days} gg`;
+
+  // ---------- storage ----------
+  let mode = "local", col = null, readOnly = false, downloads = null;
+  const lsLoad = () => { try { return JSON.parse(localStorage.getItem(LS_KEY) || "{}"); } catch { return {}; } };
+  const lsSave = () => { try { localStorage.setItem(LS_KEY, JSON.stringify(docs)); } catch {} };
+  const newId = p => (p || "t") + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+
+  // In modalità "cloud" i dati stanno su Firestore (Google), con copia offline gestita da Firebase:
+  // le scritture fatte senza rete vengono inviate appena torna la connessione.
+  async function save(id, data) {
+    docs[id] = data; renderAll();
+    if (mode === "cloud") fb.fsm.setDoc(fb.fsm.doc(col, id), data).catch(writeErr);
+    else lsSave();
+  }
+  async function remove(id) {
+    delete docs[id]; renderAll();
+    if (mode === "cloud") fb.fsm.deleteDoc(fb.fsm.doc(col, id)).catch(writeErr);
+    else lsSave();
+  }
+  function writeErr(e) {
+    const c = e && e.code;
+    if (c === "permission-denied") banner("Google ha rifiutato il salvataggio: controlla le regole di Firestore (vedi guida).");
+    else if (c === "resource-exhausted") banner("Limite giornaliero di Firebase raggiunto: riprova domani.");
+    else toast("Salvataggio non riuscito, riprova.");
+  }
+  function banner(t){ const b = $("banner"); b.textContent = t; b.style.display = t ? "block" : "none"; }
+
+  docs = lsLoad();
+  try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch {}
+
+  // ---------- Account Google (Firebase) ----------
+  let fb = null, fbUser = null, unsub = null;
+  const fbConfigured = () => !!(window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.apiKey && !/INCOLLA/.test(window.FIREBASE_CONFIG.apiKey));
+  function setStorageInfo() {
+    const el = $("storageInfo");
+    if (mode === "cloud" && fbUser) el.innerHTML = `☁️ Sincronizzato con Google · ${esc(fbUser.email || "")}`;
+    else if (fbConfigured()) el.innerHTML = `Dati solo su questo dispositivo · <a href="#" id="siLogin">Accedi con Google</a>`;
+    else el.textContent = "Dati salvati su questo dispositivo";
+    const a = $("siLogin"); if (a) a.onclick = ev => { ev.preventDefault(); login(); };
+  }
+  setStorageInfo();
+
+  async function initFirebase() {
+    if (!fbConfigured()) return;
+    try {
+      const base = "https://www.gstatic.com/firebasejs/10.12.2/";
+      const [appM, authM, fsm] = await Promise.all([import(base + "firebase-app.js"), import(base + "firebase-auth.js"), import(base + "firebase-firestore.js")]);
+      const app = appM.initializeApp(window.FIREBASE_CONFIG);
+      const auth = authM.getAuth(app);
+      let db;
+      try { db = fsm.initializeFirestore(app, { localCache: fsm.persistentLocalCache({ tabManager: fsm.persistentMultipleTabManager() }) }); }
+      catch { db = fsm.getFirestore(app); }
+      fb = { auth, authM, db, fsm };
+      authM.getRedirectResult(auth).catch(() => {});
+      authM.onAuthStateChanged(auth, user => { user ? startSync(user) : stopSync(); });
+    } catch (e) {
+      banner("Non riesco a collegarmi a Google adesso (sei offline?). Uso i dati di questo dispositivo.");
+    }
+  }
+
+  async function login() {
+    if (!fb) { await initFirebase(); if (!fb) return; }
+    const provider = new fb.authM.GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: "select_account" });
+    try { await fb.authM.signInWithPopup(fb.auth, provider); }
+    catch (e) {
+      if (e && (e.code === "auth/popup-blocked" || e.code === "auth/operation-not-supported-in-this-environment")) return fb.authM.signInWithRedirect(fb.auth, provider);
+      if (e && e.code === "auth/unauthorized-domain") { banner("Questo indirizzo non è autorizzato in Firebase: aggiungilo in Authentication → Impostazioni → Domini autorizzati."); return; }
+      if (e && e.code !== "auth/popup-closed-by-user" && e.code !== "auth/cancelled-popup-request") toast("Accesso non riuscito: " + (e.code || "errore"));
+    }
+  }
+  async function logout() {
+    if (!fb) return;
+    await fb.authM.signOut(fb.auth);
+    toast("Disconnesso. I dati restano salvati sul tuo account Google.");
+  }
+
+  function startSync(user) {
+    fbUser = user;
+    if (unsub) unsub();
+    col = fb.fsm.collection(fb.db, "users", user.uid, "docs");
+    let migrated = false;
+    unsub = fb.fsm.onSnapshot(col, { includeMetadataChanges: true }, async snap => {
+      const remote = {};
+      snap.forEach(d => { remote[d.id] = d.data(); });
+      if (!migrated && !snap.metadata.fromCache) {
+        migrated = true;
+        // Primo collegamento dal server: carico su Google i dati inseriti finora solo su questo telefono.
+        const local = lsLoad();
+        const ids = Object.keys(local).filter(id => !remote[id]);
+        if (ids.length) {
+          try { localStorage.setItem(LS_KEY + "_prima_del_login", JSON.stringify(local)); } catch {}
+          for (let i = 0; i < ids.length; i += 400) {
+            const b = fb.fsm.writeBatch(fb.db);
+            ids.slice(i, i + 400).forEach(id => { b.set(fb.fsm.doc(col, id), local[id]); remote[id] = local[id]; });
+            try { await b.commit(); } catch (e) { writeErr(e); return; }
+          }
+          toast(`${ids.length} elementi del telefono caricati sul tuo account`);
+        }
+        try { localStorage.removeItem(LS_KEY); } catch {}
+      }
+      if (mode !== "cloud") { mode = "cloud"; banner(""); }
+      docs = remote; setStorageInfo(); renderAll();
+    }, err => {
+      if (err && err.code === "permission-denied") banner("Accesso ai dati negato da Firebase: controlla le regole di Firestore (vedi guida).");
+      else banner("Sincronizzazione interrotta. Ricarica l'app.");
+    });
+  }
+  function stopSync() {
+    if (unsub) { unsub(); unsub = null; }
+    fbUser = null; col = null;
+    if (mode === "cloud") { mode = "local"; docs = lsLoad(); renderAll(); }
+    setStorageInfo();
+  }
+
+  async function cloudReplaceAll(newDocs) {
+    const ops = [...Object.keys(docs).filter(id => !newDocs[id]).map(id => ["del", id]), ...Object.keys(newDocs).map(id => ["set", id])];
+    for (let i = 0; i < ops.length; i += 400) {
+      const b = fb.fsm.writeBatch(fb.db);
+      ops.slice(i, i + 400).forEach(([op, id]) => op === "del" ? b.delete(fb.fsm.doc(col, id)) : b.set(fb.fsm.doc(col, id), newDocs[id]));
+      b.commit().catch(writeErr);
+    }
+  }
+
+  initFirebase();
+
+  // ---------- PWA: offline, install, backup ----------
+  if ("serviceWorker" in navigator && location.protocol !== "file:") {
+    window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
+  }
+  const isStandalone = () => window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  let installEvt = null;
+  window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); installEvt = e; $("installBtn").style.display = ""; });
+  window.addEventListener("appinstalled", () => { installEvt = null; $("installBtn").style.display = "none"; toast("App installata"); });
+  $("installBtn").onclick = async () => {
+    if (!installEvt) return;
+    installEvt.prompt();
+    try { await installEvt.userChoice; } catch {}
+    installEvt = null; $("installBtn").style.display = "none";
+  };
+
+  function downloadFile(name, text, type) {
+    const blob = new Blob([text], { type });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+  }
+  async function shareOrDownload(name, text, type) {
+    try {
+      const file = new File([text], name, { type });
+      if (navigator.canShare && navigator.canShare({ files: [file] }) && isIOS) { await navigator.share({ files: [file], title: name }); return true; }
+    } catch (e) { if (e && e.name === "AbortError") return false; }
+    downloadFile(name, text, type); return true;
+  }
+  const LB_KEY = "tratte_last_backup";
+  const lastBackup = () => { try { return localStorage.getItem(LB_KEY); } catch { return null; } };
+  function checkBackupReminder() {
+    if (mode === "cloud") return;
+    const n = Object.keys(docs).length; if (!n) return;
+    const lb = lastBackup();
+    const days = lb ? daysBetween(lb, todayStr()) : null;
+    if (days === null || days >= 14) {
+      const b = $("banner");
+      b.innerHTML = `${days === null ? "Non hai ancora fatto un backup dei dati." : `Ultimo backup ${days} giorni fa.`} I dati sono solo su questo dispositivo.<button type="button" id="bnBackup">Fai backup</button>`;
+      b.style.display = "block";
+      $("bnBackup").onclick = doBackup;
+    }
+  }
+  async function doBackup() {
+    const payload = JSON.stringify({ app: "mantenimento-tratte", versione: 1, esportato: new Date().toISOString(), docs }, null, 1);
+    const ok = await shareOrDownload(`backup-tratte-${todayStr()}.json`, payload, "application/json");
+    if (ok) { try { localStorage.setItem(LB_KEY, todayStr()); } catch {} banner(""); toast("Backup creato"); updMenuInfo(); }
+  }
+  function updMenuInfo() {
+    const lb = lastBackup();
+    $("mInfo").textContent = `${tratte().length} tratti · ${percorsi().length} percorsi · ${turniDef().length} turni · ${giorni().length} giorni registrati · Ultimo backup: ${lb ? fmt(lb) : "mai"}`;
+    const acc = $("mAccount");
+    if (!fbConfigured()) acc.innerHTML = "";
+    else if (fbUser) acc.innerHTML = `<button class="menu-btn" id="mLogout">☁️ ${esc(fbUser.email || "Account Google")}<small>Dati sincronizzati con il tuo account Google. Tocca per uscire.</small></button>`;
+    else acc.innerHTML = `<button class="menu-btn" id="mLogin" style="border-color:var(--accent)">🔐 Accedi con Google<small>Sincronizza i dati su tutti i tuoi dispositivi. I dati già inseriti su questo telefono vengono caricati sul tuo account.</small></button>`;
+    if ($("mLogin")) $("mLogin").onclick = () => { dM.close(); login(); };
+    if ($("mLogout")) $("mLogout").onclick = () => { dM.close(); confirmDlg("Uscire dall'account?", "I dati restano sul tuo account Google e li ritrovi al prossimo accesso. Su questo dispositivo, finché non rientri, vedrai solo i dati locali.", "Esci", logout); };
+    const box = $("mInstall");
+    if (isStandalone()) { box.style.display = "none"; return; }
+    box.style.display = "";
+    box.innerHTML = isIOS
+      ? `<b>Installa su iPhone:</b> in Safari tocca <b>Condividi</b> (il quadrato con la freccia) → <b>Aggiungi alla schermata Home</b>.`
+      : installEvt ? `<b>Installa:</b> usa il pulsante <b>⬇︎ Installa</b> in alto.` : `<b>Installa su Android:</b> nel menu di Chrome (⋮) scegli <b>Installa app</b> o <b>Aggiungi a schermata Home</b>.`;
+  }
+  const dM = $("dlgMenu");
+  $("menuBtn").onclick = () => { updMenuInfo(); dM.showModal(); };
+  $("mClose").onclick = () => dM.close();
+  $("mBackup").onclick = doBackup;
+  $("mRestore").onclick = () => $("mFile").click();
+  $("mFile").onchange = async e => {
+    const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+    let data;
+    try { data = JSON.parse(await f.text()); } catch { toast("File non valido."); return; }
+    if (!data || data.app !== "mantenimento-tratte" || typeof data.docs !== "object") { toast("Questo file non è un backup dell'app."); return; }
+    dM.close();
+    const n = Object.keys(data.docs).length;
+    confirmDlg("Ripristinare il backup?", `Il backup del ${esc(fmt((data.esportato || "").slice(0, 10)) )} contiene ${n} elementi. <b>I dati attuali ${mode === "cloud" ? "del tuo account Google" : "su questo dispositivo"} verranno sostituiti.</b>`, "Ripristina", () => {
+      if (mode === "cloud") cloudReplaceAll(data.docs);
+      docs = data.docs; if (mode !== "cloud") lsSave(); renderAll(); toast("Backup ripristinato");
+    });
+  };
+  $("mIcs").onclick = () => { dM.close(); exportIcs(); };
+
+  // ---------- tabs ----------
+  document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click", () => {
+    document.querySelectorAll(".tabs button").forEach(x => x.classList.toggle("on", x === b));
+    document.querySelectorAll(".view").forEach(v => v.classList.toggle("on", v.id === "v-" + b.dataset.v));
+  }));
+
+  function renderAll() {
+    $("stazList").innerHTML = stations().map(s => `<option value="${esc(s)}">`).join("");
+    $("impList").innerHTML = impiantiAll().map(s => `<option value="${esc(s)}">`).join("");
+    renderCal(); renderTurni(); renderTratte(); renderPerc(); renderLoc();
+  }
+
+  // ---------- calendar ----------
+  let cur = new Date(); cur = new Date(cur.getFullYear(), cur.getMonth(), 1);
+  $("prevM").onclick = () => { cur = new Date(cur.getFullYear(), cur.getMonth()-1, 1); renderCal(); };
+  $("nextM").onclick = () => { cur = new Date(cur.getFullYear(), cur.getMonth()+1, 1); renderCal(); };
+  $("goToday").onclick = () => { const t = new Date(); cur = new Date(t.getFullYear(), t.getMonth(), 1); renderCal(); };
+  $("addToday").onclick = () => openDay(todayStr());
+
+  function renderCal() {
+    $("monthTitle").textContent = cur.toLocaleDateString("it-IT", { month:"long", year:"numeric" });
+    const offset = (cur.getDay() + 6) % 7;
+    const start = new Date(cur); start.setDate(1 - offset);
+    const today = todayStr();
+    let html = ["Lun","Mar","Mer","Gio","Ven","Sab","Dom"].map(d => `<div class="dow">${d}</div>`).join("");
+    for (let i = 0; i < 42; i++) {
+      const d = new Date(start); d.setDate(start.getDate() + i);
+      if (i === 35 && d.getMonth() !== cur.getMonth()) break;
+      const s = iso(d), g = docs[dayId(s)];
+      const cls = ["day", d.getMonth() !== cur.getMonth() ? "out" : "", s === today ? "today" : "", g && g.riposo ? "rest" : ""].join(" ");
+      const n = g ? (g.tratte || []).length : 0, ni = g ? (g.impianti || []).length : 0;
+      const cnt = [n ? plural(n, "tratto", "tratti") : "", ni ? "🔧 manovra" : ""].filter(Boolean).join(" · ");
+      html += `<button type="button" class="${cls}" data-d="${s}"><span class="n">${d.getDate()}</span>` +
+        (g ? `<span class="t">${esc(g.turno || (g.riposo ? "Riposo" : ni && !n ? "Manovra" : "Turno"))}</span>` +
+             (cnt ? `<span class="c">${cnt}</span>` : "") : "") + `</button>`;
+    }
+    $("calGrid").innerHTML = html;
+
+    const ym = `${cur.getFullYear()}-${pad(cur.getMonth()+1)}`;
+    const rows = giorni().filter(([, g]) => g.data && g.data.startsWith(ym)).sort((a, b) => a[1].data < b[1].data ? -1 : 1);
+    $("dayList").innerHTML = rows.length ? rows.map(([, g]) => {
+      const pn = (g.percorsi || []).map(id => docs[id]?.nome).filter(Boolean);
+      const inPerc = new Set((g.percorsi || []).flatMap(id => docs[id] ? percSegs(docs[id]) : []));
+      const extra = (g.tratte || []).filter(id => !inPerc.has(id)).map(id => docs[id] && segName(docs[id])).filter(Boolean);
+      return `<div class="dayrow" data-d="${g.data}">
+        <div class="row"><b style="text-transform:capitalize">${esc(fmtLong(g.data))}</b><span class="badge none">${esc(g.turno || (g.riposo ? "Riposo" : "—"))}${g.variante ? " · " + esc(g.variante) : ""}</span></div>
+        ${pn.length ? `<div class="meta">🛤 ${pn.map(esc).join(" · ")}</div>` : ""}
+        ${(g.impianti || []).length ? `<div class="meta">🔧 Manovra: ${g.impianti.map(esc).join(", ")}</div>` : ""}
+        ${extra.length ? `<div class="meta">➕ ${extra.map(esc).join(" · ")}</div>` : ""}
+        ${(g.loc || []).length ? `<div class="meta">🚂 ${g.loc.map(esc).join(", ")}</div>` : ""}
+        ${g.note ? `<div class="meta">${esc(g.note)}</div>` : ""}
+      </div>`;
+    }).join("") : `<div class="empty" style="padding:20px">Nessun turno inserito in questo mese.<br>Tocca un giorno per inserirlo.</div>`;
+  }
+  $("calGrid").addEventListener("click", e => { const b = e.target.closest(".day"); if (b) openDay(b.dataset.d); });
+  $("dayList").addEventListener("click", e => { const r = e.target.closest(".dayrow"); if (r) openDay(r.dataset.d); });
+
+  // ---------- day dialog ----------
+  const dDay = $("dlgDay");
+  let dayDate = null, sel = new Set(), selP = new Set(), locs = [], imps = [], variante = null;
+
+  function openDay(s) {
+    if (readOnly) return;
+    dayDate = s;
+    const g = docs[dayId(s)] || {};
+    $("dayTitle").textContent = fmtLong(s);
+    $("dTurno").value = g.turno || "";
+    $("dRest").checked = !!g.riposo;
+    $("dNote").value = g.note || "";
+    $("dFilter").value = ""; $("dNewDa").value = ""; $("dNewA").value = ""; $("dLoc").value = ""; $("dHint").textContent = "";
+    sel = new Set((g.tratte || []).filter(id => docs[id]));
+    selP = new Set((g.percorsi || []).filter(id => docs[id]));
+    locs = [...(g.loc || [])];
+    imps = [...(g.impianti || [])];
+    variante = g.variante || null;
+    $("dImp").value = "";
+    $("dDel").style.display = docs[dayId(s)] ? "" : "none";
+    const tn = new Map();
+    turniDef().forEach(([, t]) => tn.set(turnoKey(t.nome), clean(t.nome)));
+    giorni().forEach(([, x]) => { const c = clean(x.turno); if (c && !tn.has(turnoKey(c))) tn.set(turnoKey(c), c); });
+    $("turniList").innerHTML = [...tn.values()].sort((a, b) => a.localeCompare(b, "it", { numeric: true })).map(n => `<option value="${esc(n)}">`).join("");
+    $("locNums").innerHTML = allLocNums().map(n => `<option value="${esc(n)}">`).join("");
+    const def = findTurno(g.turno || "");
+    renderVar(def);
+    syncRest(); renderDayPerc(); renderChecks(); renderLocChips(); renderImpChips();
+    dDay.showModal();
+  }
+  function syncRest(){ $("dWork").style.display = $("dRest").checked ? "none" : ""; }
+  $("dRest").onchange = syncRest;
+  const updCount = () => $("dCount").textContent = sel.size ? `(${sel.size} selezionat${sel.size === 1 ? "o" : "i"})` : "";
+
+  function renderDayPerc() {
+    const list = percorsi().sort((a, b) => (selP.has(b[0]) - selP.has(a[0])) || (a[1].nome||"").localeCompare(b[1].nome||""));
+    $("dPerc").innerHTML = list.length ? list.map(([id, p]) =>
+      `<label class="chk ${selP.has(id) ? "on" : ""}"><input type="checkbox" data-pid="${id}" ${selP.has(id) ? "checked" : ""}>
+        <div><div>${esc(p.nome)}</div><div class="meta">${esc((p.punti || []).join(" → "))}</div></div></label>`).join("")
+      : `<div class="meta" style="padding:10px">Nessun percorso salvato. Creane uno per inserire velocemente tutti i suoi tratti.</div>`;
+  }
+  $("dPerc").addEventListener("change", e => {
+    const pid = e.target.dataset.pid; if (!pid) return;
+    const segs = percSegs(docs[pid]);
+    if (e.target.checked) { selP.add(pid); segs.forEach(id => sel.add(id)); }
+    else {
+      selP.delete(pid);
+      const keep = new Set([...selP].flatMap(x => percSegs(docs[x])));
+      segs.forEach(id => { if (!keep.has(id)) sel.delete(id); });
+    }
+    renderDayPerc(); renderChecks();
+  });
+
+  function renderChecks() {
+    const q = norm($("dFilter").value);
+    const list = tratte().filter(([, t]) => !q || norm([segName(t), t.note].join(" ")).includes(q))
+      .sort((a, b) => (sel.has(b[0]) - sel.has(a[0])) || segName(a[1]).localeCompare(segName(b[1])));
+    $("dChecks").innerHTML = list.length ? list.map(([id, t]) =>
+      `<label class="chk ${sel.has(id) ? "on" : ""}"><input type="checkbox" data-id="${id}" ${sel.has(id) ? "checked" : ""}><div>${esc(segName(t))}</div></label>`).join("")
+      : `<div class="meta" style="padding:10px">${tratte().length ? "Nessun tratto trovato." : "Nessun tratto ancora: aggiungilo qui sotto o crea un percorso."}</div>`;
+    updCount();
+  }
+  $("dChecks").addEventListener("change", e => {
+    const id = e.target.dataset.id; if (!id) return;
+    e.target.checked ? sel.add(id) : sel.delete(id);
+    e.target.closest(".chk").classList.toggle("on", e.target.checked); updCount();
+  });
+  $("dFilter").oninput = renderChecks;
+
+  function ensureSeg(da, a) {
+    da = clean(da); a = clean(a);
+    if (!da || !a || norm(da) === norm(a)) return null;
+    const ex = segIndex().get(segKey(da, a)); if (ex) return ex;
+    const id = newId("t");
+    save(id, { nome: `${da} – ${a}`, da, a, note: "", effettuazioni: [], creata: todayStr() });
+    return id;
+  }
+  $("dNewBtn").onclick = () => {
+    const id = ensureSeg($("dNewDa").value, $("dNewA").value);
+    if (!id) { toast("Inserisci due località diverse."); return; }
+    sel.add(id); $("dNewDa").value = ""; $("dNewA").value = ""; $("dFilter").value = ""; renderChecks();
+  };
+
+  // loc
+  // Gruppo della loc: se c'è una matricola separata (E.494.012, E494 012) la toglie; altrimenti (E193, E.193) è già il gruppo.
+  const locTipo = n => { const m = n.match(/^(.*\d.*?)[\s.\-]+(\d{2,4})$/); return m ? m[1] : n; };
+  const locKey = t => t.replace(/[\s.\-]/g, "");
+  function allLocNums() { return [...new Set(giorni().flatMap(([, g]) => g.loc || []))].sort(); }
+  function renderLocChips() {
+    $("dLocChips").innerHTML = locs.map((n, i) => `<span class="chip">${esc(n)}<button type="button" data-i="${i}" aria-label="Rimuovi">×</button></span>`).join("");
+  }
+  function addLoc() {
+    const v = clean($("dLoc").value).toUpperCase(); if (!v) return;
+    if (!locs.includes(v)) locs.push(v);
+    $("dLoc").value = ""; renderLocChips();
+  }
+  $("dLocBtn").onclick = addLoc;
+  $("dLoc").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); addLoc(); } });
+  $("dLocChips").addEventListener("click", e => { const b = e.target.closest("button[data-i]"); if (b) { locs.splice(+b.dataset.i, 1); renderLocChips(); } });
+
+  // impianti di manovra
+  function renderImpChips() {
+    $("dImpChips").innerHTML = imps.map((n, i) => `<span class="chip">🔧 ${esc(n)}<button type="button" data-i="${i}" aria-label="Rimuovi">×</button></span>`).join("");
+  }
+  function addImp() {
+    let v = clean($("dImp").value); if (!v) return;
+    const ex = impiantiAll().find(x => norm(x) === norm(v)); if (ex) v = ex;
+    if (!imps.some(x => norm(x) === norm(v))) imps.push(v);
+    $("dImp").value = ""; renderImpChips();
+  }
+  $("dImpBtn").onclick = addImp;
+  $("dImp").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); addImp(); } });
+  $("dImpChips").addEventListener("click", e => { const b = e.target.closest("button[data-i]"); if (b) { imps.splice(+b.dataset.i, 1); renderImpChips(); } });
+
+  // turni programmati: variazioni
+  function renderVar(def) {
+    const box = $("dVar");
+    if (!def || (def.opzioni || []).length < 2) { box.innerHTML = ""; return; }
+    const curName = variante || def.opzioni[0].nome;
+    box.innerHTML = def.opzioni.map((o, i) => `<button type="button" class="vchip ${o.nome === curName ? "on" : ""}" data-vi="${i}">${esc(o.nome || (i ? "Variazione " + i : "Standard"))}</button>`).join("");
+    box.dataset.tid = def.id;
+  }
+  function applyOpt(def, i) {
+    const o = def.opzioni[i] || def.opzioni[0];
+    selP = new Set((o.percorsi || []).filter(id => docs[id]));
+    sel = new Set([...selP].flatMap(id => percSegs(docs[id])));
+    imps = [...(o.impianti || [])];
+    variante = i ? o.nome : null;
+    renderVar(def); renderDayPerc(); renderChecks(); renderImpChips();
+  }
+  $("dVar").addEventListener("click", e => {
+    const b = e.target.closest("button[data-vi]"); if (!b) return;
+    const def = findTurno($("dTurno").value); if (!def) return;
+    applyOpt(def, +b.dataset.vi);
+    $("dHint").textContent = `Caricata: ${def.opzioni[+b.dataset.vi].nome || "variazione"}. Controlla e modifica se serve.`;
+  });
+  const dayEmpty = () => !sel.size && !selP.size && !imps.length;
+  const optSummary = o => [...(o.percorsi || []).map(id => docs[id]?.nome).filter(Boolean), ...(o.impianti || []).map(x => "🔧 " + x)].join(" + ");
+
+  // turno typed: load programmed turno, else copy from previous same turno
+  $("dTurno").addEventListener("change", () => {
+    const t = norm($("dTurno").value); if (!t) { $("dHint").textContent = ""; renderVar(null); return; }
+    const def = findTurno(t);
+    if (def) {
+      $("dTurno").value = clean(def.nome);
+      variante = null; renderVar(def);
+      if (dayEmpty()) {
+        applyOpt(def, 0);
+        $("dHint").textContent = `Programmazione del turno caricata: ${optSummary(def.opzioni[0]) || "—"}.` + (def.opzioni.length > 1 ? " Se hai fatto una variazione, sceglila qui sotto." : "");
+      } else {
+        $("dHint").innerHTML = `Turno programmato trovato. <a href="#" id="dLoadDef">Carica la programmazione</a> (sostituisce la selezione attuale)`;
+        $("dLoadDef").onclick = ev => { ev.preventDefault(); applyOpt(def, 0); $("dHint").textContent = "Programmazione caricata."; };
+      }
+      return;
+    }
+    renderVar(null);
+    const prev = giorni().map(([, g]) => g).filter(g => turnoKey(g.turno) === turnoKey(t) && g.data !== dayDate && ((g.tratte || []).length || (g.percorsi || []).length || (g.impianti || []).length))
+      .sort((a, b) => a.data < b.data ? 1 : -1)[0];
+    const saveLink = ` <a href="#" id="dMkTurno">Salva come turno programmato</a>`;
+    const bindMk = () => { const a = $("dMkTurno"); if (a) a.onclick = ev => { ev.preventDefault(); makeTurnoFromDay(); }; };
+    if (!prev) { $("dHint").innerHTML = `Turno non ancora programmato.${saveLink}`; bindMk(); return; }
+    const apply = () => {
+      selP = new Set((prev.percorsi || []).filter(id => docs[id]));
+      sel = new Set((prev.tratte || []).filter(id => docs[id]));
+      imps = [...(prev.impianti || [])];
+      renderDayPerc(); renderChecks(); renderImpChips();
+    };
+    if (dayEmpty()) { apply(); $("dHint").innerHTML = `Copiato dal ${fmt(prev.data)} (stesso turno). Controlla e modifica se serve.${saveLink}`; bindMk(); }
+    else {
+      $("dHint").innerHTML = `Questo turno l'hai già fatto il ${fmt(prev.data)}. <a href="#" id="dCopy">Usa la stessa selezione</a> ·${saveLink}`;
+      $("dCopy").onclick = ev => { ev.preventDefault(); apply(); $("dHint").textContent = "Copiato."; };
+      bindMk();
+    }
+  });
+
+  function makeTurnoFromDay() {
+    const nome = clean($("dTurno").value); if (!nome) return;
+    if (!selP.size && !imps.length) { toast("Seleziona prima almeno un percorso o un impianto di manovra."); return; }
+    const id = newId("u");
+    save(id, { kind: "turno", nome, note: "", opzioni: [{ nome: "Standard", percorsi: [...selP], impianti: [...imps] }] });
+    renderVar(findTurno(nome));
+    $("dHint").textContent = `Turno ${nome} salvato tra i turni programmati. Puoi aggiungere variazioni nella scheda Turni.`;
+  }
+
+  $("dNewPerc").onclick = () => openPerc(null, pid => { selP.add(pid); percSegs(docs[pid]).forEach(id => sel.add(id)); renderDayPerc(); renderChecks(); });
+
+  $("dCancel").onclick = () => dDay.close();
+  $("formDay").addEventListener("submit", e => {
+    e.preventDefault();
+    if (clean($("dLoc").value)) addLoc();
+    if (clean($("dImp").value)) addImp();
+    const riposo = $("dRest").checked;
+    const data = { kind: "giorno", data: dayDate, turno: clean($("dTurno").value), riposo,
+      percorsi: riposo ? [] : [...selP].filter(id => docs[id]),
+      tratte: riposo ? [] : [...sel].filter(id => docs[id]),
+      impianti: riposo ? [] : imps,
+      loc: riposo ? [] : locs, note: $("dNote").value.trim() };
+    if (!riposo && variante && findTurno(data.turno)) data.variante = variante;
+    dDay.close();
+    if (!data.turno && !data.riposo && !data.tratte.length && !data.impianti.length && !data.loc.length && !data.note) { if (docs[dayId(dayDate)]) remove(dayId(dayDate)); return; }
+    save(dayId(dayDate), data);
+    const parts = [data.tratte.length ? plural(data.tratte.length, "tratto rinnovato", "tratti rinnovati") : "", data.impianti.length ? plural(data.impianti.length, "impianto", "impianti") + " di manovra" : ""].filter(Boolean);
+    toast(parts.length ? `Salvato · ${parts.join(" · ")}` : "Giorno salvato");
+  });
+  $("dDel").onclick = () => {
+    const d = dayDate; dDay.close();
+    confirmDlg("Svuotare il giorno?", `Turno, tratti e loc del ${esc(fmt(d))} verranno eliminati. Le scadenze verranno ricalcolate.`, "Svuota", () => remove(dayId(d)));
+  };
+
+  // ---------- percorso dialog ----------
+  const dP = $("dlgPerc");
+  let editP = null, pts = [], afterPerc = null;
+  function openPerc(id, cb) {
+    if (readOnly) return;
+    editP = id; afterPerc = cb || null;
+    const p = id ? docs[id] : {};
+    pts = id ? [...(p.punti || [])] : ["", ""];
+    $("pTitle").textContent = id ? "Modifica percorso" : "Nuovo percorso";
+    $("pNome").value = p.nome || "";
+    $("pDel").style.display = id ? "" : "none";
+    renderPts(); dP.showModal();
+    if (!id) setTimeout(() => $("pPts").querySelector("input")?.focus(), 50);
+  }
+  function renderPts() {
+    $("pPts").innerHTML = pts.map((v, i) => `<div class="pt"><span class="i">${i+1}</span>
+      <input list="stazList" data-i="${i}" value="${esc(v)}" placeholder="${i === 0 ? "Partenza" : i === pts.length - 1 ? "Arrivo" : "Località"}">
+      <button type="button" data-up="${i}" ${i === 0 ? "disabled" : ""} aria-label="Su">↑</button>
+      <button type="button" data-down="${i}" ${i === pts.length - 1 ? "disabled" : ""} aria-label="Giù">↓</button>
+      <button type="button" data-rm="${i}" aria-label="Rimuovi">×</button></div>`).join("");
+    renderPrev();
+  }
+  function renderPrev() {
+    const p = pts.map(clean).filter(Boolean);
+    if (p.length < 2) { $("pPrev").innerHTML = `<span class="meta">Inserisci almeno due località.</span>`; return; }
+    const idx = segIndex(); let rows = [], nNew = 0;
+    for (let i = 0; i < p.length - 1; i++) {
+      if (norm(p[i]) === norm(p[i+1])) continue;
+      const ex = idx.has(segKey(p[i], p[i+1])); if (!ex) nNew++;
+      rows.push(`<div>${esc(p[i])} – ${esc(p[i+1])} ${ex ? `<span class="meta">(esistente)</span>` : `<span class="new">(nuovo)</span>`}</div>`);
+    }
+    $("pPrev").innerHTML = `<div class="meta" style="margin-bottom:4px"><b>${plural(rows.length, "tratto", "tratti")}</b>${nNew ? ` · ${nNew} da creare` : ""}</div>` + rows.join("");
+  }
+  $("pPts").addEventListener("input", e => { const i = e.target.dataset.i; if (i !== undefined) { pts[+i] = e.target.value; renderPrev(); } });
+  $("pPts").addEventListener("click", e => {
+    const b = e.target.closest("button"); if (!b) return;
+    if (b.dataset.up) { const i = +b.dataset.up; [pts[i-1], pts[i]] = [pts[i], pts[i-1]]; }
+    else if (b.dataset.down) { const i = +b.dataset.down; [pts[i+1], pts[i]] = [pts[i], pts[i+1]]; }
+    else if (b.dataset.rm) { pts.splice(+b.dataset.rm, 1); if (pts.length < 2) pts.push(""); }
+    renderPts();
+  });
+  $("pAddPt").onclick = () => { pts.push(""); renderPts(); const ins = $("pPts").querySelectorAll("input"); ins[ins.length-1].focus(); };
+  $("pCancel").onclick = () => dP.close();
+  $("formPerc").addEventListener("submit", e => {
+    e.preventDefault();
+    const p = pts.map(clean).filter(Boolean);
+    if (p.length < 2) { toast("Servono almeno due località."); return; }
+    for (let i = 0; i < p.length - 1; i++) ensureSeg(p[i], p[i+1]);
+    const id = editP || newId("p");
+    const nome = clean($("pNome").value) || `${p[0]} – ${p[p.length-1]}`;
+    dP.close();
+    save(id, { kind: "percorso", nome, punti: p });
+    toast("Percorso salvato");
+    if (afterPerc) afterPerc(id);
+  });
+  $("pDel").onclick = () => {
+    const id = editP; dP.close();
+    confirmDlg("Eliminare il percorso?", `“${esc(docs[id].nome)}” verrà eliminato. I tratti e lo storico già registrato restano.`, "Elimina", async () => {
+      for (const [gid, g] of giorni()) if ((g.percorsi || []).includes(id)) await save(gid, { ...g, percorsi: g.percorsi.filter(x => x !== id) });
+      for (const [uid, t] of turniDef()) if ((t.opzioni || []).some(o => (o.percorsi || []).includes(id)))
+        await save(uid, { ...t, opzioni: t.opzioni.map(o => ({ ...o, percorsi: (o.percorsi || []).filter(x => x !== id) })) });
+      remove(id);
+    });
+  };
+
+  // ---------- turni programmati ----------
+  const dTu = $("dlgTurno");
+  let editTu = null, tuOpts = [];
+  function openTurno(id) {
+    if (readOnly) return;
+    editTu = id || null;
+    const t = id ? docs[id] : {};
+    $("tuTitle").textContent = id ? "Modifica turno" : "Nuovo turno";
+    $("tuNome").value = t.nome || ""; $("tuNote").value = t.note || "";
+    tuOpts = id ? structuredClone(t.opzioni || []) : [];
+    if (!tuOpts.length) tuOpts.push({ nome: "Standard", percorsi: [], impianti: [] });
+    $("tuDel").style.display = id ? "" : "none";
+    renderTuOpts(); dTu.showModal();
+  }
+  function renderTuOpts() {
+    const plist = percorsi().sort((a, b) => (a[1].nome||"").localeCompare(b[1].nome||""));
+    $("tuOpts").innerHTML = tuOpts.map((o, i) => `<div class="opt">
+      <div class="row" style="align-items:center">
+        <input data-on="${i}" value="${esc(o.nome)}" placeholder="${i ? "es. Via Ronchi Nord" : "Standard"}" style="font-weight:600">
+        ${i ? `<button type="button" class="ghost" data-orm="${i}" aria-label="Rimuovi variazione">×</button>` : ""}
+      </div>
+      <div class="meta" style="margin-top:4px">${i ? "Variazione" : "Programmazione standard"}</div>
+      <label class="l">Percorsi</label>
+      <div class="checks">${plist.length ? plist.map(([pid, p]) => {
+        const on = (o.percorsi || []).includes(pid);
+        return `<label class="chk ${on ? "on" : ""}"><input type="checkbox" data-op="${i}" data-pid="${pid}" ${on ? "checked" : ""}><div><div>${esc(p.nome)}</div><div class="meta">${esc((p.punti || []).join(" → "))}</div></div></label>`;
+      }).join("") : `<div class="meta" style="padding:10px">Nessun percorso: creane uno qui sotto.</div>`}</div>
+      <div class="inline"><button type="button" data-onew="${i}">+ Nuovo percorso</button></div>
+      <label class="l">Manovra in impianto</label>
+      <div class="inline" style="margin-top:0"><input data-oimp="${i}" list="impList" placeholder="es. Cervignano Smistamento"><button type="button" data-oimpadd="${i}">Aggiungi</button></div>
+      <div class="chips">${(o.impianti || []).map((x, j) => `<span class="chip">🔧 ${esc(x)}<button type="button" data-oimprm="${i}:${j}">×</button></span>`).join("")}</div>
+    </div>`).join("");
+  }
+  function tuAddImp(i) {
+    const inp = $("tuOpts").querySelector(`input[data-oimp="${i}"]`);
+    let v = clean(inp.value); if (!v) return;
+    const ex = impiantiAll().find(x => norm(x) === norm(v)); if (ex) v = ex;
+    tuOpts[i].impianti = tuOpts[i].impianti || [];
+    if (!tuOpts[i].impianti.some(x => norm(x) === norm(v))) tuOpts[i].impianti.push(v);
+    renderTuOpts();
+  }
+  $("tuOpts").addEventListener("input", e => { const i = e.target.dataset.on; if (i !== undefined) tuOpts[+i].nome = e.target.value; });
+  $("tuOpts").addEventListener("change", e => {
+    const i = e.target.dataset.op; if (i === undefined) return;
+    const o = tuOpts[+i], pid = e.target.dataset.pid;
+    o.percorsi = (o.percorsi || []).filter(x => x !== pid);
+    if (e.target.checked) o.percorsi.push(pid);
+    e.target.closest(".chk").classList.toggle("on", e.target.checked);
+  });
+  $("tuOpts").addEventListener("keydown", e => { if (e.key === "Enter" && e.target.dataset.oimp !== undefined) { e.preventDefault(); tuAddImp(+e.target.dataset.oimp); } });
+  $("tuOpts").addEventListener("click", e => {
+    const b = e.target.closest("button"); if (!b) return;
+    if (b.dataset.orm) { tuOpts.splice(+b.dataset.orm, 1); renderTuOpts(); }
+    else if (b.dataset.onew !== undefined) { const i = +b.dataset.onew; openPerc(null, pid => { tuOpts[i].percorsi = [...(tuOpts[i].percorsi || []), pid]; renderTuOpts(); }); }
+    else if (b.dataset.oimpadd !== undefined) tuAddImp(+b.dataset.oimpadd);
+    else if (b.dataset.oimprm) { const [i, j] = b.dataset.oimprm.split(":").map(Number); tuOpts[i].impianti.splice(j, 1); renderTuOpts(); }
+  });
+  $("tuAddOpt").onclick = () => { tuOpts.push({ nome: "", percorsi: [], impianti: [] }); renderTuOpts(); const ins = $("tuOpts").querySelectorAll("input[data-on]"); ins[ins.length-1].focus(); };
+  $("tuCancel").onclick = () => dTu.close();
+  $("formTurno").addEventListener("submit", e => {
+    e.preventDefault();
+    const nome = clean($("tuNome").value); if (!nome) return;
+    const dup = findTurno(nome);
+    if (dup && dup.id !== editTu) { toast(`Il turno ${nome} esiste già.`); return; }
+    $("tuOpts").querySelectorAll("input[data-oimp]").forEach(inp => { if (clean(inp.value)) tuAddImp(+inp.dataset.oimp); });
+    const opzioni = tuOpts.map((o, i) => ({ nome: clean(o.nome) || (i ? `Variazione ${i}` : "Standard"), percorsi: (o.percorsi || []).filter(id => docs[id]), impianti: o.impianti || [] }));
+    const id = editTu || newId("u");
+    dTu.close();
+    save(id, { kind: "turno", nome, note: clean($("tuNote").value), opzioni });
+    toast(`Turno ${nome} salvato`);
+  });
+  $("tuDel").onclick = () => {
+    const id = editTu; dTu.close();
+    confirmDlg("Eliminare il turno programmato?", `La programmazione del turno “${esc(docs[id].nome)}” verrà eliminata. I giorni già inseriti nel calendario restano.`, "Elimina", () => remove(id));
+  };
+  $("addTurno").onclick = () => openTurno(null);
+  $("searchT").oninput = () => renderTurni();
+
+  function renderTurni() {
+    const q = norm($("searchT").value);
+    const all = turniDef();
+    const list = all.filter(([, t]) => !q || norm([t.nome, t.note, ...(t.opzioni || []).map(o => o.nome + " " + optSummary(o))].join(" ")).includes(q))
+      .sort((a, b) => a[1].nome.localeCompare(b[1].nome, "it", { numeric: true }));
+    const L = $("turniListView");
+    if (!all.length) { L.innerHTML = `<div class="empty">Nessun turno programmato.<br>Crea il primo con <b>+ Turno</b>, oppure dal calendario usa “Salva come turno programmato”.</div>`; return; }
+    if (!list.length) { L.innerHTML = `<div class="empty">Nessun turno trovato.</div>`; return; }
+    const lastDone = {};
+    giorni().forEach(([, g]) => { const k = turnoKey(g.turno); if (k && g.data <= todayStr() && (!lastDone[k] || g.data > lastDone[k])) lastDone[k] = g.data; });
+    L.innerHTML = list.map(([id, t]) => {
+      const ld = lastDone[turnoKey(t.nome)];
+      return `<div class="card none" style="border-left-color:var(--accent)">
+        <div class="row"><div><div class="name">Turno ${esc(t.nome.replace(/^turno\s*/i, ""))}</div>${t.note ? `<div class="meta">${esc(t.note)}</div>` : ""}</div>
+          <span class="badge none">${ld ? "ultimo: " + fmt(ld) : "mai fatto"}</span></div>
+        ${(t.opzioni || []).map((o, i) => `<div class="optline"><b>${esc(o.nome || (i ? "Variazione" : "Standard"))}:</b> ${esc(optSummary(o)) || `<span class="meta">nessun percorso</span>`}</div>`).join("")}
+        <div class="actions"><button class="ghost sm" data-tu="${id}">Modifica</button></div>
+      </div>`;
+    }).join("");
+  }
+  $("turniListView").addEventListener("click", e => { const b = e.target.closest("button[data-tu]"); if (b) openTurno(b.dataset.tu); });
+
+  // ---------- tratti view ----------
+  let filter = null;
+  function renderTratte() {
+    const q = norm($("search").value);
+    const items = tratte().map(([id, t]) => ({ id, t, i: info(id) }));
+    const c = { ok:0, warn:0, bad:0 };
+    items.forEach(x => { if (c[x.i.st] !== undefined) c[x.i.st]++; });
+    $("nOk").textContent = c.ok; $("nWarn").textContent = c.warn; $("nBad").textContent = c.bad;
+    document.querySelectorAll(".stat").forEach(s => s.classList.toggle("sel", s.dataset.f === filter));
+    const shown = items.filter(x => (!filter || x.i.st === filter) && (!q || norm([segName(x.t), x.t.note].join(" ")).includes(q)))
+      .sort((a, b) => a.i.scad === b.i.scad ? segName(a.t).localeCompare(segName(b.t)) : !a.i.scad ? -1 : !b.i.scad ? 1 : a.i.scad < b.i.scad ? -1 : 1);
+    const L = $("list");
+    if (!items.length) { L.innerHTML = `<div class="empty">Nessun tratto inserito.<br>Il modo più veloce è creare un percorso nella scheda <b>Percorsi</b>.</div>`; return; }
+    if (!shown.length) { L.innerHTML = `<div class="empty">Nessun tratto corrisponde al filtro.</div>`; return; }
+    const usedIn = {};
+    percorsi().forEach(([, p]) => percSegs(p).forEach(id => (usedIn[id] = usedIn[id] || []).push(p.nome)));
+    L.innerHTML = shown.map(({ id, t, i }) => {
+      const hist = [...datesFor(id).entries()].sort((a, b) => a[0] < b[0] ? 1 : -1).slice(0, 5).map(([d, src]) =>
+        `<span>${fmt(d)}${src === "manuale" ? ` <button data-act="undo" data-id="${id}" data-d="${d}" title="Rimuovi">×</button>` : ` · ${esc(src)}`}</span>`).join("");
+      return `<div class="card ${i.st}">
+        <div class="row"><div>
+          <div class="name">${esc(segName(t))}</div>
+          <div class="meta">Ultima: <b>${fmt(i.last)}</b> · Scade: <b>${fmt(i.scad)}</b></div>
+          ${usedIn[id] ? `<div class="meta">In: ${usedIn[id].map(esc).join(", ")}</div>` : ""}
+          ${t.note ? `<div class="meta">${esc(t.note)}</div>` : ""}
+        </div><span class="badge ${i.st}">${badgeText(i)}</span></div>
+        ${hist ? `<div class="hist">Storico: ${hist}</div>` : ""}
+        <div class="actions"><button class="ghost sm" data-act="edit" data-id="${id}">Modifica</button></div>
+      </div>`;
+    }).join("");
+  }
+  $("list").addEventListener("click", e => {
+    const b = e.target.closest("button[data-act]"); if (!b) return;
+    const id = b.dataset.id;
+    if (b.dataset.act === "edit") openTratta(id);
+    if (b.dataset.act === "undo") confirmDlg("Rimuovere la data?", `${fmt(b.dataset.d)} verrà tolta da “${esc(segName(docs[id]))}”.`, "Rimuovi", () => {
+      const t = structuredClone(docs[id]); t.effettuazioni = (t.effettuazioni || []).filter(x => x !== b.dataset.d); save(id, t);
+    });
+  });
+  document.querySelectorAll(".stat").forEach(s => s.onclick = () => { filter = filter === s.dataset.f ? null : s.dataset.f; renderTratte(); });
+  $("search").oninput = renderTratte;
+
+  // tratto dialog
+  const dT = $("dlgTratta"); let editing = null;
+  function openTratta(id) {
+    if (readOnly) return;
+    editing = id || null; const t = id ? docs[id] : {};
+    $("tTitle").textContent = id ? "Modifica tratto" : "Nuovo tratto";
+    let da = t.da || "", a = t.a || "";
+    if (id && !da && !a && t.nome) { const p = t.nome.split(/\s+[–\-—]\s+/); if (p.length === 2) [da, a] = p; else da = t.nome; }
+    $("fDa").value = da; $("fA").value = a; $("fNote").value = t.note || "";
+    $("fData").value = ""; $("fData").max = todayStr();
+    $("tDel").style.display = id ? "" : "none";
+    dT.showModal();
+  }
+  $("addBtn").onclick = () => openTratta();
+  $("tCancel").onclick = () => dT.close();
+  $("formTratta").addEventListener("submit", e => {
+    e.preventDefault();
+    const da = clean($("fDa").value), a = clean($("fA").value);
+    if (!da || !a || norm(da) === norm(a)) { toast("Inserisci due località diverse."); return; }
+    const dup = segIndex().get(segKey(da, a));
+    if (dup && dup !== editing) { toast("Questo tratto esiste già."); return; }
+    const id = editing || newId("t");
+    const t = editing ? structuredClone(docs[id]) : { creata: todayStr(), effettuazioni: [] };
+    Object.assign(t, { nome: `${da} – ${a}`, da, a, note: $("fNote").value.trim() });
+    const d = $("fData").value;
+    if (d && !(t.effettuazioni || []).includes(d)) t.effettuazioni = [...(t.effettuazioni || []), d].sort().slice(-MAX_HIST);
+    dT.close(); save(id, t);
+  });
+  $("tDel").onclick = () => {
+    const id = editing; dT.close();
+    confirmDlg("Eliminare il tratto?", `“${esc(segName(docs[id]))}” e il suo storico verranno eliminati e tolti dai giorni del calendario. Se fa parte di un percorso, verrà ricreato al prossimo salvataggio di quel percorso.`, "Elimina", async () => {
+      for (const [gid, g] of giorni()) if ((g.tratte || []).includes(id)) await save(gid, { ...g, tratte: g.tratte.filter(x => x !== id) });
+      remove(id);
+    });
+  };
+
+  // ---------- percorsi view ----------
+  function renderPerc() {
+    const q = norm($("searchP").value);
+    const list = percorsi().filter(([, p]) => !q || norm([p.nome, ...(p.punti || [])].join(" ")).includes(q))
+      .sort((a, b) => (a[1].nome||"").localeCompare(b[1].nome||""));
+    if (!percorsi().length) { $("percList").innerHTML = `<div class="empty">Nessun percorso.<br>Crea il primo con <b>+ Percorso</b>: inserisci le località in ordine e i tratti verranno creati in automatico.</div>`; return; }
+    if (!list.length) { $("percList").innerHTML = `<div class="empty">Nessun percorso trovato.</div>`; return; }
+    const idx = segIndex();
+    $("percList").innerHTML = list.map(([id, p]) => {
+      const ptsArr = (p.punti || []);
+      let worst = "ok", nBad = 0, nWarn = 0, html = `<span class="stn">${esc(ptsArr[0] || "")}</span>`;
+      for (let i = 0; i < ptsArr.length - 1; i++) {
+        const sid = idx.get(segKey(ptsArr[i], ptsArr[i+1]));
+        const inf = sid ? info(sid) : { st: "none" };
+        if (inf.st === "bad") nBad++; if (inf.st === "warn") nWarn++;
+        if (inf.st === "none" && worst === "ok") worst = "none";
+        html += ` <span class="seg ${inf.st}" title="${esc(inf.scad ? "Scade " + fmt(inf.scad) : "Mai effettuato")}">${inf.st === "none" ? "—" : inf.st === "bad" ? "scad." : inf.days + " gg"}</span> <span class="stn">${esc(ptsArr[i+1])}</span>`;
+      }
+      if (nWarn) worst = "warn"; if (nBad) worst = "bad";
+      const sum = nBad ? `${plural(nBad, "tratto scaduto", "tratti scaduti")}` : nWarn ? `${plural(nWarn, "tratto", "tratti")} in scadenza` : worst === "none" ? "Da effettuare" : "Tutto valido";
+      return `<div class="card ${worst}">
+        <div class="row"><div class="name">${esc(p.nome)}</div><span class="badge ${worst}">${sum}</span></div>
+        <div class="path">${html}</div>
+        <div class="actions"><button class="ghost sm" data-pid="${id}">Modifica</button></div>
+      </div>`;
+    }).join("");
+  }
+  $("percList").addEventListener("click", e => { const b = e.target.closest("button[data-pid]"); if (b) openPerc(b.dataset.pid); });
+  $("addPerc").onclick = () => openPerc(null);
+  $("searchP").oninput = renderPerc;
+
+  // ---------- loc view ----------
+  function renderImpianti() {
+    const names = impiantiAll();
+    if (!names.length) { $("impListView").innerHTML = `<div class="empty" style="padding:20px">Nessun impianto registrato.<br>Aggiungili nei giorni del calendario o nei turni.</div>`; return; }
+    const items = names.map(n => ({ n, i: impInfo(n) }))
+      .sort((a, b) => a.i.scad === b.i.scad ? a.n.localeCompare(b.n) : !a.i.scad ? -1 : !b.i.scad ? 1 : a.i.scad < b.i.scad ? -1 : 1);
+    $("impListView").innerHTML = items.map(({ n, i }) => `<div class="card ${i.st}">
+      <div class="row"><div>
+        <div class="name">${esc(n)}</div>
+        <div class="meta">Ultima manovra: <b>${fmt(i.last)}</b> · Scade: <b>${fmt(i.scad)}</b>${i.n ? ` · ${plural(i.n, "giorno", "giorni")}` : ""}</div>
+      </div><span class="badge ${i.st}">${badgeText(i).replace("Mai effettuato", "Mai fatta")}</span></div>
+    </div>`).join("");
+  }
+
+  function renderLoc() {
+    renderImpianti();
+    const byNum = new Map();
+    giorni().forEach(([, g]) => (g.loc || []).forEach(n => {
+      if (!byNum.has(n)) byNum.set(n, []);
+      byNum.get(n).push(g.data);
+    }));
+    if (!byNum.size) { $("locList").innerHTML = `<div class="empty">Nessuna loc registrata.<br>Aggiungile nei giorni del calendario.</div>`; return; }
+    const byTipo = new Map();
+    const tipoName = new Map();
+    byNum.forEach((dates, n) => { const t = locTipo(n), k = locKey(t); if (!tipoName.has(k)) tipoName.set(k, t); if (!byTipo.has(k)) byTipo.set(k, []); byTipo.get(k).push({ n, dates: dates.sort() }); });
+    const today = todayStr();
+    $("locList").innerHTML = [...byTipo.entries()].sort((a, b) => a[0].localeCompare(b[0], "it", { numeric: true })).map(([k, arr]) => { const tipo = tipoName.get(k);
+      const all = arr.flatMap(x => x.dates).filter(d => d <= today).sort();
+      const last = all[all.length - 1];
+      const ago = last ? daysBetween(last, today) : null;
+      const days = new Set(all).size;
+      arr.sort((a, b) => a.dates[a.dates.length-1] < b.dates[b.dates.length-1] ? 1 : -1);
+      return `<div class="card none" style="border-left-color:var(--accent)">
+        <div class="row"><div class="name">${esc(tipo)}</div><span class="badge none">${last ? (ago === 0 ? "oggi" : `${ago} gg fa`) : "—"}</span></div>
+        <div class="meta">Ultimo utilizzo: <b>${fmt(last)}</b> · ${plural(days, "giorno", "giorni")} di utilizzo · ${plural(arr.length, "macchina", "macchine")}</div>
+        <div class="hist">${arr.map(x => `<span>${esc(x.n)} · ${fmt(x.dates[x.dates.length-1])}</span>`).join("")}</div>
+      </div>`;
+    }).join("") + `<p class="note">Le loc sono raggruppate per gruppo/tipo ricavato dalla matricola (es. E.494.012 → E.494). Puoi inserire anche solo il gruppo, es. E193.</p>`;
+  }
+
+  // ---------- confirm / toast ----------
+  const dC = $("dlgConfirm"); let onYes = null;
+  function confirmDlg(title, html, yes, cb) { $("cTitle").textContent = title; $("cText").innerHTML = html; $("cYes").textContent = yes; onYes = cb; dC.showModal(); }
+  $("cNo").onclick = () => dC.close();
+  $("cYes").onclick = () => { dC.close(); onYes && onYes(); };
+  let tt;
+  function toast(m) { const el = $("toast"); el.textContent = m; el.classList.add("show"); clearTimeout(tt); tt = setTimeout(() => el.classList.remove("show"), 2400); }
+
+  // ---------- ICS export ----------
+  function exportIcs() {
+    const rows = tratte().map(([id, t]) => ({ id, t, i: info(id), nm: segName(t), k: "Tratto" }))
+      .concat(impiantiAll().map(n => ({ id: "imp-" + norm(n).replace(/[^a-z0-9]+/g, "-"), i: impInfo(n), nm: n, k: "Impianto" })))
+      .filter(x => x.i.scad);
+    if (!rows.length) { toast("Nessuna scadenza da esportare."); return; }
+    const stamp = new Date().toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
+    const d8 = s => s.replace(/-/g, "");
+    const shift = (s, n) => { const d = parse(s); d.setDate(d.getDate() + n); return iso(d); };
+    const ie = s => String(s).replace(/[\\;,]/g, m => "\\" + m).replace(/\n/g, "\\n");
+    const ev = [];
+    rows.forEach(({ id, i, nm, k: kind }) => {
+      [[shift(i.scad, -30), `${kind} in scadenza tra 30 gg: ${nm}`, "pre"], [i.scad, `SCADE oggi (${kind.toLowerCase()}): ${nm}`, "exp"]].forEach(([day, sum, k]) => {
+        ev.push(["BEGIN:VEVENT", `UID:${id}-${k}@tratte`, `DTSTAMP:${stamp}`,
+          `DTSTART;VALUE=DATE:${d8(day)}`, `DTEND;VALUE=DATE:${d8(shift(day, 1))}`,
+          `SUMMARY:${ie(sum)}`, `DESCRIPTION:${ie(`Ultima effettuazione: ${fmt(i.last)}. Scadenza: ${fmt(i.scad)}.`)}`,
+          "BEGIN:VALARM", "ACTION:DISPLAY", `DESCRIPTION:${ie(sum)}`, "TRIGGER:PT9H", "END:VALARM", "END:VEVENT"].join("\r\n"));
+      });
+    });
+    const ics = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Mantenimento tratte//IT", "CALSCALE:GREGORIAN", ...ev, "END:VCALENDAR"].join("\r\n");
+    downloadFile("scadenze-tratte.ics", ics, "text/calendar");
+    toast("File calendario creato: aprilo per importare i promemoria");
+  }
+
+  renderAll();
+  checkBackupReminder();
+})();
+</script>
+</body>
+</html>
