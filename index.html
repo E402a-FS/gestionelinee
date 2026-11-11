@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Gestione Linee · Cervignano Smistamento</title>
+<meta name="theme-color" content="#F3F4F7">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Gestione Linee">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root{
+  --bg:#F3F4F7; --card:#FFFFFF; --card2:#F7F8FA; --text:#111827; --muted:#6B7280; --line:#E5E7EB;
+  --accent:#2563EB; --accent-soft:#E7EEFE; --danger:#DC2626;
+  --servizio:#2563EB; --riserva:#D97706; --riposo:#64748B; --ferie:#059669; --altro:#7C3AED;
+  --servizio-s:#E7EEFE; --riserva-s:#FDF1E1; --riposo-s:#EEF1F5; --ferie-s:#E1F5EE; --altro-s:#F0EAFE;
+  --shadow:0 1px 2px rgba(17,24,39,.04),0 6px 20px rgba(17,24,39,.06);
+  --r:20px;
+}
+[data-theme=dark]{
+  --bg:#0D1015; --card:#161A21; --card2:#1C2129; --text:#EEF1F6; --muted:#8A93A3; --line:#252B35;
+  --accent:#5B8CF7; --accent-soft:#1B2640;
+  --servizio:#5B8CF7; --riserva:#F0A63A; --riposo:#8C99AD; --ferie:#2FBF8A; --altro:#A07CF8;
+  --servizio-s:#1B2640; --riserva-s:#2E2414; --riposo-s:#1F242C; --ferie-s:#132B23; --altro-s:#251D3A;
+  --shadow:none;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--text);
+  font:15px/1.4 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Inter,sans-serif;
+  -webkit-font-smoothing:antialiased;overscroll-behavior:none}
+button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer}
+input,textarea{font:inherit;color:var(--text)}
+svg{display:block}
+.muted{color:var(--muted)}
+
+/* ---------- Layout ---------- */
+.topbar{position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:space-between;
+  padding:calc(14px + env(safe-area-inset-top)) 18px 10px;background:var(--bg)}
+.topbar h1{font-size:22px;font-weight:700;letter-spacing:-.02em;margin:0}
+.icon-btn{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:var(--card);box-shadow:var(--shadow);color:var(--muted)}
+.icon-btn.spin svg{animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+main{padding:4px 16px calc(96px + env(safe-area-inset-bottom))}
+.view{animation:fade .25s ease}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+.tabbar{position:fixed;left:0;right:0;bottom:0;z-index:10;display:flex;justify-content:space-around;
+  padding:8px 6px calc(8px + env(safe-area-inset-bottom));background:var(--card);border-top:1px solid var(--line)}
+.tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px;font-weight:600;color:var(--muted);padding:4px 0}
+.tab .pill{width:46px;height:30px;border-radius:15px;display:grid;place-items:center;transition:background .2s}
+.tab.on{color:var(--accent)}
+.tab.on .pill{background:var(--accent-soft)}
+
+/* ---------- Cards ---------- */
+.card{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);padding:16px}
+.sec{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:22px 4px 10px}
+.greet{margin:2px 4px 16px}
+.greet .d{font-size:13px;color:var(--muted);text-transform:capitalize}
+.greet h2{margin:2px 0 0;font-size:26px;letter-spacing:-.02em}
+
+.hero{border-radius:24px;padding:18px;color:#fff;position:relative;overflow:hidden;box-shadow:var(--shadow);width:100%;text-align:left;display:block}
+.hero::after{content:"";position:absolute;right:-40px;top:-40px;width:180px;height:180px;border-radius:50%;background:rgba(255,255,255,.08)}
+.hero.t-servizio{background:linear-gradient(140deg,#1D4ED8,#3B82F6)}
+.hero.t-riserva{background:linear-gradient(140deg,#B45309,#F59E0B)}
+.hero.t-riposo{background:linear-gradient(140deg,#475569,#94A3B8)}
+.hero.t-ferie{background:linear-gradient(140deg,#047857,#10B981)}
+.hero.t-altro{background:linear-gradient(140deg,#6D28D9,#A78BFA)}
+.hero.t-vuoto{background:linear-gradient(140deg,#374151,#6B7280)}
+.hero-top{display:flex;justify-content:space-between;align-items:center}
+.badge-w{background:rgba(255,255,255,.2);padding:5px 10px;border-radius:999px;font-size:12px;font-weight:600}
+.hero-code{font-size:46px;font-weight:800;letter-spacing:-.03em;margin:14px 0 0;line-height:1.05;word-break:break-word}
+.hero-label{font-size:15px;opacity:.9;margin-top:4px}
+.hero-team{display:flex;align-items:center;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,.2);font-size:13.5px}
+.hero-team span{opacity:.95}
+
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+.mini{display:block;text-align:left;width:100%}
+.mini .lbl{font-size:12.5px;color:var(--muted);font-weight:600}
+.mini .val{font-size:24px;font-weight:800;letter-spacing:-.02em;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mini .sub{font-size:12.5px;margin-top:2px;font-weight:600}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:1px}
+
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.action{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);padding:14px;text-align:left;display:flex;flex-direction:column;gap:12px}
+.action .ic{width:40px;height:40px;border-radius:12px;display:grid;place-items:center}
+.action b{font-size:14.5px}
+
+/* ---------- Liste ---------- */
+.list{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
+.row{display:flex;align-items:center;gap:12px;padding:13px 16px;width:100%;text-align:left}
+.row + .row{border-top:1px solid var(--line)}
+.row .main{flex:1;min-width:0}
+.row .t{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .s{font-size:13px;color:var(--muted)}
+.row .chev{color:var(--muted)}
+.row .ic{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;flex:none}
+.av{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:700;font-size:14px;flex:none}
+.code{font-weight:700;font-size:13px;padding:5px 10px;border-radius:999px;white-space:nowrap;max-width:150px;overflow:hidden;text-overflow:ellipsis}
+.tag{font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;background:var(--accent-soft);color:var(--accent);margin-left:6px;vertical-align:1px}
+
+.t-servizio .c, .c.t-servizio{background:var(--servizio-s);color:var(--servizio)}
+.c.t-riserva{background:var(--riserva-s);color:var(--riserva)}
+.c.t-riposo{background:var(--riposo-s);color:var(--riposo)}
+.c.t-ferie{background:var(--ferie-s);color:var(--ferie)}
+.c.t-altro{background:var(--altro-s);color:var(--altro)}
+.c.t-vuoto{background:var(--card2);color:var(--muted)}
+
+.empty{text-align:center;padding:34px 20px;color:var(--muted)}
+.empty .ic{width:56px;height:56px;border-radius:18px;background:var(--card2);display:grid;place-items:center;margin:0 auto 12px}
+
+/* ---------- Segmented ---------- */
+.seg{display:flex;background:var(--card2);border-radius:14px;padding:4px;margin-bottom:14px;border:1px solid var(--line)}
+.seg button{flex:1;padding:9px;border-radius:10px;font-weight:600;color:var(--muted)}
+.seg button.on{background:var(--card);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+
+/* ---------- Calendario ---------- */
+.cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.cal-head b{font-size:18px;text-transform:capitalize}
+.cal{padding:12px 10px}
+.wd{display:grid;grid-template-columns:repeat(7,1fr);text-align:center;font-size:11.5px;font-weight:700;color:var(--muted);margin-bottom:6px}
+.days{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.day{aspect-ratio:1/1.18;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:6px 2px 7px;background:var(--card2);min-width:0}
+.day .n{font-size:12.5px;font-weight:600;color:var(--muted)}
+.day .k{font-size:11.5px;font-weight:800;max-width:100%;overflow:hidden;text-overflow:clip;white-space:nowrap;padding:0 2px}
+.day.t-servizio{background:var(--servizio-s)} .day.t-servizio .k{color:var(--servizio)}
+.day.t-riserva{background:var(--riserva-s)} .day.t-riserva .k{color:var(--riserva)}
+.day.t-riposo{background:var(--riposo-s)} .day.t-riposo .k{color:var(--riposo)}
+.day.t-ferie{background:var(--ferie-s)} .day.t-ferie .k{color:var(--ferie)}
+.day.t-altro{background:var(--altro-s)} .day.t-altro .k{color:var(--altro)}
+.day.today{outline:2px solid var(--accent);outline-offset:1px}
+.day.today .n{color:var(--accent)}
+.day.blank{background:none}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}
+.stat{background:var(--card);border-radius:16px;box-shadow:var(--shadow);padding:10px 8px;text-align:center}
+.stat b{display:block;font-size:20px}
+.stat span{font-size:11.5px;color:var(--muted);font-weight:600}
+
+/* ---------- Bottoni & form ---------- */
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:15px;border-radius:16px;background:var(--accent);color:#fff;font-weight:700;font-size:15.5px}
+.btn.soft{background:var(--accent-soft);color:var(--accent)}
+.btn.warn{background:var(--riserva);color:#fff}
+.btn[disabled]{opacity:.6}
+.spinner{width:18px;height:18px;border:2.5px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
+.btn .spinner{width:18px;height:18px;border:2.5px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
+label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin:14px 2px 6px}
+.inp{width:100%;padding:13px 14px;border-radius:14px;border:1.5px solid var(--line);background:var(--card2);outline:none;font-size:16px;-webkit-appearance:none;appearance:none;min-height:50px}
+.inp:focus{border-color:var(--accent)}
+textarea.inp{min-height:110px;resize:none}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.chip{padding:8px 14px;border-radius:999px;background:var(--card2);border:1px solid var(--line);font-weight:600;font-size:13.5px}
+.hint{font-size:12.5px;color:var(--muted);margin:10px 2px 18px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+/* ---------- Bottom sheet ---------- */
+#backdrop{position:fixed;inset:0;background:rgba(0,0,0,.4);opacity:0;pointer-events:none;transition:opacity .25s;z-index:20}
+#sheet{position:fixed;left:0;right:0;bottom:0;z-index:21;background:var(--card);border-radius:26px 26px 0 0;
+  padding:8px 18px calc(22px + env(safe-area-inset-bottom));max-height:88vh;overflow:auto;
+  transform:translateY(105%);transition:transform .3s cubic-bezier(.2,.8,.2,1)}
+body.sheet-open #backdrop{opacity:1;pointer-events:auto}
+body.sheet-open #sheet{transform:none}
+.grab{width:38px;height:5px;border-radius:3px;background:var(--line);margin:0 auto 14px}
+.sh-title{font-size:20px;font-weight:700;margin:0 0 4px;letter-spacing:-.01em}
+.sh-sub{color:var(--muted);font-size:13.5px;text-transform:capitalize;margin-bottom:16px}
+.big{display:flex;align-items:center;gap:14px;padding:16px;border-radius:18px;margin-bottom:18px}
+.big .ic{width:48px;height:48px;border-radius:14px;display:grid;place-items:center;background:rgba(255,255,255,.5)}
+[data-theme=dark] .big .ic{background:rgba(255,255,255,.06)}
+.big .k{font-size:26px;font-weight:800;letter-spacing:-.02em;line-height:1.1;word-break:break-word}
+.big .l{font-size:13.5px;font-weight:600;opacity:.85}
+.big.t-servizio{background:var(--servizio-s);color:var(--servizio)}
+.big.t-riserva{background:var(--riserva-s);color:var(--riserva)}
+.big.t-riposo{background:var(--riposo-s);color:var(--riposo)}
+.big.t-ferie{background:var(--ferie-s);color:var(--ferie)}
+.big.t-altro{background:var(--altro-s);color:var(--altro)}
+.big.t-vuoto{background:var(--card2);color:var(--muted)}
+.sheet-list{background:var(--card2);border-radius:16px;overflow:hidden;margin-bottom:16px}
+.sheet-list .row + .row{border-top-color:var(--line)}
+.guide p{margin:0 0 12px}
+
+/* ---------- Toast & skeleton ---------- */
+#toast{position:fixed;left:50%;bottom:calc(92px + env(safe-area-inset-bottom));transform:translate(-50%,20px);opacity:0;
+  background:#111827;color:#fff;padding:11px 16px;border-radius:14px;font-weight:600;font-size:14px;z-index:30;
+  transition:all .25s;max-width:88vw;text-align:center;pointer-events:none}
+#toast.on{opacity:1;transform:translate(-50%,0)}
+#toast.err{background:var(--danger)}
+.sk{background:linear-gradient(90deg,var(--card2) 0%,var(--line) 50%,var(--card2) 100%);background-size:200% 100%;animation:sh 1.2s infinite;border-radius:16px}
+@keyframes sh{to{background-position:-200% 0}}
+.full{min-height:70vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:20px}
+.full .ic{width:72px;height:72px;border-radius:22px;display:grid;place-items:center;background:var(--card);box-shadow:var(--shadow);margin-bottom:18px}
+.full h2{margin:0 0 8px}
+.foot{text-align:center;font-size:12px;color:var(--muted);margin-top:22px}
+.logo{width:76px;height:76px;border-radius:22px;display:grid;place-items:center;color:#fff;background:linear-gradient(140deg,#1D4ED8,#3B82F6);margin-bottom:18px;box-shadow:0 8px 24px rgba(37,99,235,.3)}
+.login{width:100%;max-width:340px;text-align:left;margin-top:8px}
+.login .inp{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:14px}
+.err-box{background:#FDECEC;color:var(--danger);font-size:13.5px;font-weight:600;padding:10px 12px;border-radius:12px;margin-top:12px}
+[data-theme=dark] .err-box{background:#3A1A1A}
+.link{color:var(--accent);font-weight:600;font-size:14px;margin-top:18px;display:inline-block}
+.steps{counter-reset:s;margin:0 0 6px;padding:0;list-style:none}
+.steps li{counter-increment:s;display:flex;gap:12px;align-items:flex-start;padding:10px 0}
+.steps li::before{content:counter(s);flex:none;width:26px;height:26px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-weight:700;font-size:13px;display:grid;place-items:center}
+.demo{background:var(--riserva-s);color:var(--riserva);font-size:12.5px;font-weight:600;padding:8px 12px;border-radius:12px;margin:0 0 12px;text-align:center}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <h1 id="title">Home</h1>
+  <button class="icon-btn" id="refresh" aria-label="Aggiorna"></button>
+</header>
+<main id="view"></main>
+<nav class="tabbar" id="tabbar"></nav>
+<div id="backdrop"></div>
+<div id="sheet" role="dialog"><div class="grab"></div><div id="sheet-body"></div></div>
+<div id="toast"></div>
+
+<script>
+/* ============================================================
+   CONFIGURAZIONE — incolla qui l'URL /exec del tuo Apps Script
+   (lo stesso che hai in WEBAPP_URL)
+   ============================================================ */
+const API_URL = "https://script.google.com/macros/s/AKfycbxXFsHs_qdfjbzpO2gzpDC33Hm-tPx8yutP_fIA27ry6zeuOX25DHGc_6vMcOTqWkPfHw/exec";
+const VERSIONE = "2.1";
+
+/* ---------- Telegram ---------- */
+const tg = window.Telegram && window.Telegram.WebApp;
+const IN_TG = !!(tg && tg.initData);
+const STANDALONE = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+const IOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const store = {
+  get: k => { try { return localStorage.getItem(k); } catch (_) { return null; } },
+  set: (k, v) => { try { localStorage.setItem(k, v); } catch (_) {} },
+  del: k => { try { localStorage.removeItem(k); } catch (_) {} },
+};
+const K_SESS = "turni_sessione", K_CACHE = "turni_home";
+// Modalità: "telegram" (Mini App), "app" (sito/app installata, accesso tramite bot), "demo" (dati di esempio)
+let DEMO = !IN_TG && (/[?&]demo/.test(location.search) || !/^https?:$/.test(location.protocol) && !store.get(K_SESS));
+const ver = v => !!(IN_TG && tg.isVersionAtLeast && tg.isVersionAtLeast(v));
+const haptic = (t = "light") => { if (ver("6.1")) tg.HapticFeedback.impactOccurred(t); };
+const hapticOk = (t = "success") => { if (ver("6.1")) tg.HapticFeedback.notificationOccurred(t); };
+
+/* ---------- Icone ---------- */
+const P = {
+  home:'<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/>',
+  cal:'<rect x="3" y="4.5" width="18" height="16.5" rx="3"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/>',
+  shield:'<path d="M12 3 4.5 6v5.5c0 4.6 3.1 8.2 7.5 9.5 4.4-1.3 7.5-4.9 7.5-9.5V6z"/>',
+  sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  grid:'<rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/>',
+  edit:'<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/>',
+  bell:'<path d="M6 16v-5a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/>',
+  warn:'<path d="M12 3.5 2.5 20h19z"/><path d="M12 10v4.5M12 17.2v.1"/>',
+  file:'<path d="M14 3H6.5A1.5 1.5 0 0 0 5 4.5v15A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V8z"/><path d="M14 3v5h5M8.5 13h7M8.5 16.5h5"/>',
+  book:'<path d="M12 6.5C10.5 5 8 4.5 4 4.5v14c4 0 6.5.5 8 2 1.5-1.5 4-2 8-2v-14c-4 0-6.5.5-8 2z"/><path d="M12 6.5v14"/>',
+  mega:'<path d="M3 10v4h3l9 5V5L6 10z"/><path d="M18.5 9a4 4 0 0 1 0 6"/>',
+  right:'<path d="m9 6 6 6-6 6"/>', left:'<path d="m15 6-6 6 6 6"/>',
+  users:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.7a3.5 3.5 0 0 1 0 6.6M17.5 14a6 6 0 0 1 4 6"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>',
+  train:'<rect x="5" y="3" width="14" height="14" rx="3"/><path d="M5 10.5h14M8.5 21l1.5-4M15.5 21 14 17"/><path d="M9 13.8h.01M15 13.8h.01"/>',
+  moon:'<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>',
+  route:'<circle cx="6" cy="19" r="2.5"/><circle cx="18" cy="5" r="2.5"/><path d="M8.5 19H16a3.5 3.5 0 0 0 0-7H8a3.5 3.5 0 0 1 0-7h7.5"/>',
+  refresh:'<path d="M20 11a8 8 0 0 0-14.7-4.4L4 8M4 4v4h4M4 13a8 8 0 0 0 14.7 4.4L20 16m0 4v-4h-4"/>',
+  lock:'<rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/>',
+  pause:'<rect x="6.5" y="5" width="4" height="14" rx="1.2"/><rect x="13.5" y="5" width="4" height="14" rx="1.2"/>',
+};
+const ico = (n, s = 22, w = 1.9) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${P[n]}</svg>`;
+
+const TIPI = {
+  servizio:{label:"In servizio", ico:"train"},
+  riserva:{label:"Di riserva", ico:"shield"},
+  riposo:{label:"Riposo", ico:"moon"},
+  ferie:{label:"Ferie / congedo", ico:"sun"},
+  altro:{label:"Sospensione", ico:"pause"},
+  vuoto:{label:"Nessun turno", ico:"cal"},
+};
+
+/* ---------- Utilità ---------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const pad = n => String(n).padStart(2, "0");
+const MESI = ["gennaio","febbraio","marzo","aprile","maggio","giugno","luglio","agosto","settembre","ottobre","novembre","dicembre"];
+const GG = ["domenica","lunedì","martedì","mercoledì","giovedì","venerdì","sabato"];
+const toIt = d => `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+const fromIt = s => { const [g, m, a] = String(s).split("/").map(Number); return new Date(a, m - 1, g); };
+const itToIso = s => { const [g, m, a] = String(s).split("/"); return `${a}-${m}-${g}`; };
+const isoToIt = s => { const [a, m, g] = String(s).split("-"); return `${g}/${m}/${a}`; };
+const lunga = s => { const d = fromIt(s); return `${GG[d.getDay()]} ${d.getDate()} ${MESI[d.getMonth()]}`; };
+const breve = s => { const d = fromIt(s); return `${d.getDate()} ${MESI[d.getMonth()].slice(0, 3)}`; };
+const iniziali = n => String(n).trim().split(/\s+/).slice(0, 2).map(x => x[0] || "").join("").toUpperCase();
+const colore = n => { let h = 0; for (const c of String(n)) h = (h * 31 + c.charCodeAt(0)) % 360; return `hsl(${h},52%,48%)`; };
+const avatar = n => `<div class="av" style="background:${colore(n)}">${esc(iniziali(n))}</div>`;
+const abbr = (c, t) => !c ? "" : t === "riserva" ? "RIS" : c.length > 5 ? c.slice(0, 5) : c;
+
+/* ---------- Stato ---------- */
+const S = {
+  tab: "home", home: null, mesi: {}, ferie: null,
+  calY: null, calM: null, risGiorno: "oggi", giorno: null, avvisoGiorno: "oggi",
+};
+const meseKey = (y, m) => `${y}-${m}`;
+
+/* ---------- API ---------- */
+async function api(action, params = {}) {
+  if (DEMO) return demoApi(action, params);
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify(IN_TG
+      ? { source: "miniapp", action, params, initData: tg.initData }
+      : { source: "miniapp", action, params, sessione: store.get(K_SESS) }),
+  });
+  const j = await res.json();
+  if (!j.ok) { const e = new Error(j.errore || "Errore"); e.codice = j.errore; e.id = j.id; throw e; }
+  return j.dati;
+}
+
+/* ---------- UI di base ---------- */
+const TABS = [
+  ["home", "Home", "home"], ["cal", "Turni", "cal"], ["tratte", "Tratte", "route"],
+  ["riserve", "Riserve", "shield"], ["ferie", "Ferie", "sun"], ["altro", "Altro", "grid"],
+];
+const TAB_IDS = ["home", "cal", "riserve", "ferie", "altro"];
+// La scheda Tratte è l'app "Mantenimento tratte", nella cartella /tratte/ dello stesso sito
+function apriTratte() {
+  haptic("light");
+  const url = location.origin + "/tratte/";
+  // dentro Telegram l'accesso con Google non è permesso: le tratte si aprono nel browser
+  if (IN_TG) tg.openLink(url); else location.href = url;
+}
+function renderTabbar() {
+  $("#tabbar").innerHTML = TABS.map(([id, label, i]) =>
+    `<button class="tab ${S.tab === id ? "on" : ""}" onclick="vai('${id}')"><span class="pill">${ico(i, 21)}</span>${label}</button>`).join("");
+}
+function vai(tab) {
+  if (tab === "tratte") return apriTratte();
+  if (S.tab === tab) return;
+  haptic("light");
+  S.tab = tab; render(); window.scrollTo(0, 0);
+  try { history.replaceState(null, "", tab === "home" ? location.pathname : "#" + tab); } catch (_) {}
+}
+function render() {
+  renderTabbar();
+  const titoli = { home: "Home", cal: "I miei turni", riserve: "Riserve", ferie: "Ferie e congedi", altro: "Altro" };
+  $("#title").textContent = titoli[S.tab];
+  const v = { home: vHome, cal: vCal, riserve: vRiserve, ferie: vFerie, altro: vAltro }[S.tab]();
+  $("#view").innerHTML = `<div class="view">${DEMO && S.tab === "home" ? '<div class="demo">Anteprima con dati di esempio</div>' : ""}${v}</div>`;
+}
+let toastT;
+function toast(msg, err = false) {
+  const t = $("#toast"); t.textContent = msg; t.className = "on" + (err ? " err" : "");
+  clearTimeout(toastT); toastT = setTimeout(() => t.className = "", 2600);
+}
+function errore(e) {
+  hapticOk("error");
+  if (e && e.codice === "SESSIONE_NON_VALIDA") {
+    if (!IN_TG) { store.del(K_SESS); return vLogin("Questo dispositivo è stato scollegato: accedi di nuovo."); }
+    return toast("Sessione scaduta: chiudi e riapri l'app", true);
+  }
+  if (e instanceof TypeError) return toast(S.home ? "Sei offline: dati dell'ultimo aggiornamento" : "Nessuna connessione", true);
+  toast(e && e.message ? e.message : "Errore di connessione", true);
+}
+function busy(btn, on, testo) {
+  if (!btn) return;
+  if (on) { btn.dataset.t = btn.innerHTML; btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>'; }
+  else { btn.disabled = false; btn.innerHTML = testo || btn.dataset.t; }
+}
+function conferma(msg) {
+  return new Promise(r => {
+    if (DEMO) return r(true);
+    if (ver("6.2")) tg.showConfirm(msg, ok => r(!!ok)); else r(window.confirm(msg));
+  });
+}
+function apriLink(url) {
+  if (!url) return toast("Link non ancora disponibile", true);
+  haptic();
+  if (IN_TG) tg.openLink(url); else window.open(url, "_blank");
+}
+
+/* ---------- Bottom sheet ---------- */
+function openSheet(html) {
+  $("#sheet-body").innerHTML = html;
+  $("#sheet").scrollTop = 0;
+  document.body.classList.add("sheet-open");
+  if (ver("6.1")) tg.BackButton.show();
+}
+function closeSheet() {
+  document.body.classList.remove("sheet-open");
+  if (ver("6.1")) tg.BackButton.hide();
+}
+const sheetLoading = () => `<div class="sk" style="height:22px;width:55%;margin-bottom:10px"></div><div class="sk" style="height:14px;width:35%;margin-bottom:20px"></div><div class="sk" style="height:84px;margin-bottom:16px"></div><div class="sk" style="height:120px"></div>`;
+
+/* ============================================================
+   VISTE
+   ============================================================ */
+function vSkeleton() {
+  return `<div class="sk" style="height:16px;width:40%;margin:4px 4px 10px"></div><div class="sk" style="height:30px;width:60%;margin:0 4px 18px"></div>
+  <div class="sk" style="height:190px;border-radius:24px"></div>
+  <div class="grid2"><div class="sk" style="height:100px"></div><div class="sk" style="height:100px"></div></div>
+  <div class="sk" style="height:16px;width:35%;margin:24px 4px 12px"></div>
+  <div class="actions"><div class="sk" style="height:96px"></div><div class="sk" style="height:96px"></div><div class="sk" style="height:96px"></div><div class="sk" style="height:96px"></div></div>`;
+}
+
+function vHome() {
+  const h = S.home; if (!h) return vSkeleton();
+  const o = h.oggi, d = h.domani, t = TIPI[o.tipo];
+  const nome = String(h.utente.nome).split(/\s+/)[0];
+  const team = o.colleghi.length
+    ? `<div class="hero-team">${ico("users", 18)}<span>Con ${esc(o.colleghi.map(c => c.nome).join(", "))}</span></div>` : "";
+  const ro = h.riserveOggi.lista.length;
+  return `
+  <div class="greet"><div class="d">${lunga(o.data)}</div><h2>Ciao, ${esc(nome)}</h2></div>
+  <button class="hero t-${o.tipo}" onclick="apriGiorno('${o.data}')">
+    <div class="hero-top"><span class="badge-w">Oggi</span>${ico(t.ico, 24)}</div>
+    <div class="hero-code">${esc(o.turno || "—")}</div>
+    <div class="hero-label">${o.caricato ? t.label : "Turni non ancora caricati"}</div>
+    ${team}
+  </button>
+  <div class="grid2">
+    <button class="card mini" onclick="apriGiorno('${d.data}')">
+      <div class="lbl">Domani · ${breve(d.data)}</div>
+      <div class="val">${esc(d.turno || "—")}</div>
+      <div class="sub" style="color:var(--${d.tipo === "vuoto" ? "muted" : d.tipo})"><span class="dot" style="background:currentColor"></span>${TIPI[d.tipo].label}</div>
+    </button>
+    <button class="card mini" onclick="vai('riserve')">
+      <div class="lbl">Riserve oggi</div>
+      <div class="val">${ro}</div>
+      <div class="sub" style="color:var(--riserva)"><span class="dot" style="background:currentColor"></span>${ro === 1 ? "collega" : "colleghi"} disponibili</div>
+    </button>
+  </div>
+  <div class="sec">Azioni rapide</div>
+  <div class="actions">
+    ${azione("edit", "Inserisci turno", "servizio", "apriInserisci()")}
+    ${azione("bell", "Avvisa riserve", "riserva", "apriAvviso()")}
+    ${azione("sun", "Segnala ferie", "ferie", "apriFerie()")}
+    ${azione("warn", "Segnala anomalia", "altro", "apriAnomalia()")}
+  </div>`;
+}
+const azione = (i, testo, col, fn) =>
+  `<button class="action" onclick="${fn}"><span class="ic" style="background:var(--${col}-s);color:var(--${col})">${ico(i, 21)}</span><b>${testo}</b></button>`;
+
+/* ---------- Calendario ---------- */
+function vCal() {
+  if (!S.home) return vSkeleton();
+  if (S.calY === null) { const t = fromIt(S.home.oggi.data); S.calY = t.getFullYear(); S.calM = t.getMonth(); }
+  const y = S.calY, m = S.calM, dati = S.mesi[meseKey(y, m)];
+  const head = `<div class="cal-head">
+      <button class="icon-btn" onclick="spostaMese(-1)" aria-label="Mese precedente">${ico("left", 20)}</button>
+      <b>${MESI[m]} ${y}</b>
+      <button class="icon-btn" onclick="spostaMese(1)" aria-label="Mese successivo">${ico("right", 20)}</button>
+    </div>`;
+  const wd = `<div class="wd">${["L","M","M","G","V","S","D"].map(x => `<span>${x}</span>`).join("")}</div>`;
+  if (!dati) {
+    caricaMese(y, m);
+    return head + `<div class="card cal">${wd}<div class="days">${Array.from({length:35}, () => '<div class="day sk"></div>').join("")}</div></div>`;
+  }
+  const offset = (new Date(y, m, 1).getDay() + 6) % 7;
+  const oggi = S.home.oggi.data;
+  let celle = Array.from({ length: offset }, () => '<div class="day blank"></div>').join("");
+  const cont = { servizio: 0, riserva: 0, riposo: 0, ferie: 0 };
+  dati.giorni.forEach((g, i) => {
+    if (cont[g.tipo] !== undefined) cont[g.tipo]++;
+    celle += `<button class="day t-${g.tipo} ${g.data === oggi ? "today" : ""}" onclick="apriGiorno('${g.data}')">
+      <span class="n">${i + 1}</span><span class="k">${esc(abbr(g.turno, g.tipo))}</span></button>`;
+  });
+  const stat = (n, l, c) => `<div class="stat"><b style="color:var(--${c})">${n}</b><span>${l}</span></div>`;
+  return head + `<div class="card cal">${wd}<div class="days">${celle}</div></div>
+    <div class="stats">${stat(cont.servizio, "Servizi", "servizio")}${stat(cont.riserva, "Riserve", "riserva")}${stat(cont.riposo, "Riposi", "riposo")}${stat(cont.ferie, "Ferie", "ferie")}</div>
+    <div class="sec">Il mese in breve</div>
+    <div class="list">${riepilogoMese(dati)}</div>`;
+}
+function riepilogoMese(dati) {
+  const oggi = fromIt(S.home.oggi.data);
+  const prossimi = dati.giorni.filter(g => g.turno && fromIt(g.data) >= oggi).slice(0, 6);
+  if (!prossimi.length) return `<div class="empty">Nessun turno caricato per i prossimi giorni di questo mese.</div>`;
+  return prossimi.map(g => `<button class="row" onclick="apriGiorno('${g.data}')">
+      <div class="main"><div class="t" style="text-transform:capitalize">${lunga(g.data)}</div><div class="s">${TIPI[g.tipo].label}</div></div>
+      <span class="code c t-${g.tipo}">${esc(g.turno)}</span></button>`).join("");
+}
+function spostaMese(d) {
+  haptic();
+  S.calM += d;
+  if (S.calM < 0) { S.calM = 11; S.calY--; }
+  if (S.calM > 11) { S.calM = 0; S.calY++; }
+  render();
+}
+const inCaricamento = {};
+async function caricaMese(y, m) {
+  const k = meseKey(y, m); if (inCaricamento[k]) return; inCaricamento[k] = true;
+  try { S.mesi[k] = await api("mese", { anno: y, mese: m }); if (S.tab === "cal") render(); }
+  catch (e) { errore(e); }
+  finally { delete inCaricamento[k]; }
+}
+
+/* ---------- Dettaglio giorno ---------- */
+async function apriGiorno(data) {
+  haptic();
+  openSheet(sheetLoading());
+  try {
+    const g = await api("giorno", { data });
+    S.giorno = g;
+    const t = TIPI[g.tipo];
+    const col = g.colleghi.length
+      ? `<div class="sec" style="margin-top:0">${g.tipo === "riserva" ? "Altre riserve" : "In servizio con te"}</div>
+         <div class="sheet-list">${g.colleghi.map(c => `<div class="row">${avatar(c.nome)}<div class="main"><div class="t">${esc(c.nome)}</div></div><span class="code c t-${g.tipo}">${esc(c.turno)}</span></div>`).join("")}</div>`
+      : (g.tipo === "servizio" || g.tipo === "riserva") ? `<p class="hint" style="margin-top:0">Nessun collega abbinato per questa data.</p>` : "";
+    openSheet(`
+      <div class="sh-title">Il tuo turno</div>
+      <div class="sh-sub">${lunga(g.data)} ${fromIt(g.data).getFullYear()}</div>
+      <div class="big t-${g.tipo}"><div class="ic">${ico(t.ico, 26)}</div>
+        <div><div class="k">${esc(g.turno || "—")}</div><div class="l">${g.caricato ? t.label : "Turni non ancora caricati"}</div></div></div>
+      ${col}
+      ${g.modificabile ? `<button class="btn soft" onclick="apriInserisci(S.giorno.data, S.giorno.turno)">${ico("edit", 19)} ${g.turno ? "Modifica turno" : "Inserisci turno"}</button>` : ""}`);
+  } catch (e) { closeSheet(); errore(e); }
+}
+
+/* ---------- Inserisci turno ---------- */
+function apriInserisci(data, turno) {
+  haptic();
+  const limite = S.home.limiteInserimento;
+  let d = data || S.home.oggi.data;
+  if (fromIt(d) < fromIt(limite)) d = limite;
+  openSheet(`
+    <div class="sh-title">${turno ? "Modifica turno" : "Inserisci turno"}</div>
+    <div class="sh-sub" style="text-transform:none">Consentito dal ${limite}</div>
+    <label for="f-data">Data</label>
+    <input class="inp" type="date" id="f-data" min="${itToIso(limite)}" value="${itToIso(d)}">
+    <label for="f-cod">Codice turno</label>
+    <input class="inp" id="f-cod" placeholder="es. 762, 762D, Riserva 06:00-13:00" value="${esc(turno || "")}" autocomplete="off" autocapitalize="characters">
+    <div class="chips">${["R", "RIS", "C", "SC"].map(c => `<button class="chip" onclick="document.getElementById('f-cod').value='${c}';haptic()">${c}</button>`).join("")}</div>
+    <p class="hint">R = riposo · RIS = riserva · C = congedo (viene registrato anche nelle ferie) · SC</p>
+    <button class="btn" id="f-save" onclick="salvaTurno(this)">Salva turno</button>`);
+}
+async function salvaTurno(btn) {
+  const iso = $("#f-data").value, codice = $("#f-cod").value.trim();
+  if (!iso) return toast("Scegli una data", true);
+  if (!codice) return toast("Scrivi il codice del turno", true);
+  const data = isoToIt(iso);
+  busy(btn, true);
+  try {
+    await api("inserisciTurno", { data, codice });
+    hapticOk(); closeSheet(); toast("Turno salvato ✓");
+    const d = fromIt(data); delete S.mesi[meseKey(d.getFullYear(), d.getMonth())];
+    ricarica(true);
+  } catch (e) { busy(btn, false); errore(e); }
+}
+
+/* ---------- Riserve ---------- */
+function vRiserve() {
+  if (!S.home) return vSkeleton();
+  const r = S.risGiorno === "oggi" ? S.home.riserveOggi : S.home.riserveDomani;
+  const seg = `<div class="seg">
+    <button class="${S.risGiorno === "oggi" ? "on" : ""}" onclick="S.risGiorno='oggi';haptic();render()">Oggi · ${breve(S.home.riserveOggi.data)}</button>
+    <button class="${S.risGiorno === "domani" ? "on" : ""}" onclick="S.risGiorno='domani';haptic();render()">Domani · ${breve(S.home.riserveDomani.data)}</button></div>`;
+  const lista = !r.caricato
+    ? `<div class="card empty"><div class="ic">${ico("cal", 26)}</div>Turni non ancora caricati per questa data.</div>`
+    : r.lista.length
+      ? `<div class="list">${r.lista.map(x => `<div class="row">${avatar(x.nome)}<div class="main"><div class="t">${esc(x.nome)}</div></div><span class="code c t-riserva">${esc(x.turno)}</span></div>`).join("")}</div>`
+      : `<div class="card empty"><div class="ic">${ico("shield", 26)}</div>Nessun collega di riserva in questa data.</div>`;
+  return seg + lista + `<div style="margin-top:18px"><button class="btn warn" onclick="apriAvviso('${S.risGiorno}')">${ico("bell", 19)} Avvisa le riserve</button></div>`;
+}
+function apriAvviso(giorno) {
+  haptic();
+  if (giorno) S.avvisoGiorno = giorno;
+  const h = S.home;
+  openSheet(`
+    <div class="sh-title">Avvisa riserve</div>
+    <div class="sh-sub" style="text-transform:none">Il messaggio arriva solo ai colleghi di riserva nel giorno scelto.</div>
+    <div class="seg" id="av-seg">
+      <button class="${S.avvisoGiorno === "oggi" ? "on" : ""}" onclick="S.avvisoGiorno='oggi';segAvviso()">Oggi (${h.riserveOggi.lista.length})</button>
+      <button class="${S.avvisoGiorno === "domani" ? "on" : ""}" onclick="S.avvisoGiorno='domani';segAvviso()">Domani (${h.riserveDomani.lista.length})</button>
+    </div>
+    <label for="f-det">Turno da coprire e indicazioni</label>
+    <textarea class="inp" id="f-det" placeholder="es. Turno 762 – partenza ore 05:30 Cervignano SM"></textarea>
+    <p class="hint">Il tuo nome comparirà come mittente.</p>
+    <button class="btn warn" onclick="inviaAvviso(this)">${ico("bell", 19)} Invia avviso</button>`);
+}
+function segAvviso() {
+  haptic();
+  const b = document.querySelectorAll("#av-seg button");
+  b[0].classList.toggle("on", S.avvisoGiorno === "oggi");
+  b[1].classList.toggle("on", S.avvisoGiorno === "domani");
+}
+async function inviaAvviso(btn) {
+  const dettagli = $("#f-det").value.trim();
+  if (!dettagli) return toast("Scrivi il turno da coprire", true);
+  const r = S.avvisoGiorno === "oggi" ? S.home.riserveOggi : S.home.riserveDomani;
+  if (!(await conferma(`Inviare l'avviso a ${r.lista.length} colleghi di riserva del ${r.data}?`))) return;
+  busy(btn, true);
+  try {
+    const x = await api("avvisaRiserve", { data: r.data, dettagli });
+    hapticOk(); closeSheet(); toast(`Avviso inviato a ${x.inviati} colleghi ✓`);
+  } catch (e) { busy(btn, false); errore(e); }
+}
+
+/* ---------- Ferie ---------- */
+function vFerie() {
+  const btn = `<div style="margin-bottom:16px"><button class="btn" onclick="apriFerie()">${ico("plus", 19)} Segnala ferie</button></div>`;
+  if (!S.ferie) {
+    caricaFerie();
+    return btn + `<div class="sk" style="height:70px;margin-bottom:10px"></div><div class="sk" style="height:70px;margin-bottom:10px"></div><div class="sk" style="height:70px"></div>`;
+  }
+  if (!S.ferie.length) return btn + `<div class="card empty"><div class="ic">${ico("sun", 26)}</div>Nessuna ferie o congedo in programma.</div>`;
+  const gruppi = {};
+  S.ferie.forEach(f => { const d = fromIt(f.dal); const k = `${MESI[d.getMonth()]} ${d.getFullYear()}`; (gruppi[k] = gruppi[k] || []).push(f); });
+  return btn + Object.entries(gruppi).map(([mese, l]) => `<div class="sec" style="text-transform:capitalize">${mese}</div>
+    <div class="list">${l.map(f => {
+      const giorni = Math.round((fromIt(f.al) - fromIt(f.dal)) / 864e5) + 1;
+      const per = f.dal === f.al ? `<span style="text-transform:capitalize">${lunga(f.dal)}</span>` : `${breve(f.dal)} → ${breve(f.al)}`;
+      return `<div class="row">${avatar(f.nome)}<div class="main">
+        <div class="t">${esc(f.nome)}${f.mio ? '<span class="tag">Tu</span>' : ""}</div>
+        <div class="s">${per}${f.nota && f.nota !== "-" ? " · " + esc(f.nota) : ""}</div></div>
+        <span class="code c t-ferie">${giorni} gg</span></div>`;
+    }).join("")}</div>`).join("");
+}
+let ferieInCorso = false;
+async function caricaFerie() {
+  if (ferieInCorso) return; ferieInCorso = true;
+  try { S.ferie = await api("ferie"); if (S.tab === "ferie") render(); }
+  catch (e) { errore(e); }
+  finally { ferieInCorso = false; }
+}
+function apriFerie() {
+  haptic();
+  const oggi = itToIso(S.home ? S.home.oggi.data : toIt(new Date()));
+  openSheet(`
+    <div class="sh-title">Segnala ferie</div>
+    <div class="sh-sub" style="text-transform:none">Il periodo comparirà nella lista ferie di tutti.</div>
+    <div class="two">
+      <div><label for="f-dal">Dal</label><input class="inp" type="date" id="f-dal" value="${oggi}" onchange="document.getElementById('f-al').min=this.value;if(document.getElementById('f-al').value<this.value)document.getElementById('f-al').value=this.value"></div>
+      <div><label for="f-al">Al</label><input class="inp" type="date" id="f-al" value="${oggi}" min="${oggi}"></div>
+    </div>
+    <label for="f-note">Nota (facoltativa)</label>
+    <input class="inp" id="f-note" placeholder="es. Ferie estive">
+    <p class="hint"></p>
+    <button class="btn" onclick="salvaFerie(this)">Registra ferie</button>`);
+}
+async function salvaFerie(btn) {
+  const dal = $("#f-dal").value, al = $("#f-al").value;
+  if (!dal || !al) return toast("Scegli le date", true);
+  if (al < dal) return toast("La fine è prima dell'inizio", true);
+  busy(btn, true);
+  try {
+    await api("segnalaFerie", { dal: isoToIt(dal), al: isoToIt(al), note: $("#f-note").value.trim() });
+    hapticOk(); closeSheet(); toast("Ferie registrate ✓");
+    S.ferie = null; if (S.tab === "ferie") render();
+  } catch (e) { busy(btn, false); errore(e); }
+}
+
+/* ---------- Altro ---------- */
+function vAltro() {
+  if (!S.home) return vSkeleton();
+  const h = S.home;
+  const riga = (i, col, t, s, fn) => `<button class="row" onclick="${fn}"><span class="ic" style="background:var(--${col}-s);color:var(--${col})">${ico(i, 19)}</span>
+    <div class="main"><div class="t">${t}</div>${s ? `<div class="s">${s}</div>` : ""}</div><span class="chev">${ico("right", 18)}</span></button>`;
+  return `
+    <div class="card row" style="padding:16px;margin-bottom:6px">${avatar(h.utente.nome)}<div class="main"><div class="t">${esc(h.utente.nome)}</div><div class="s">${h.utente.admin ? "Amministratore" : "Deposito Cervignano Smistamento"}</div></div></div>
+    <div class="sec">Documenti</div>
+    <div class="list">
+      ${riga("file", "servizio", "Turni grafici", "PDF su Google Drive", "apriLink(S.home.link.grafici)")}
+      ${riga("file", "servizio", "Plurimensile", "PDF su Google Drive", "apriLink(S.home.link.plurimensile)")}
+      ${riga("file", "servizio", "Mensile", "PDF su Google Drive", "apriLink(S.home.link.mensile)")}
+    </div>
+    <div class="sec">Supporto</div>
+    <div class="list">
+      ${riga("warn", "altro", "Segnala un'anomalia", "Errori nei turni o nell'app", "apriAnomalia()")}
+      ${riga("book", "ferie", "Guida all'uso", "", "apriGuida()")}
+    </div>
+    ${h.utente.admin ? `<div class="sec">Amministrazione</div><div class="list">${riga("mega", "riserva", "Messaggio a tutti", "Comunicazione a tutti i colleghi abilitati", "apriBroadcast()")}</div>` : ""}
+    ${sezioneApp(riga)}
+    <div class="foot">Versione ${VERSIONE} · ${IN_TG ? "Telegram" : DEMO ? "Anteprima" : STANDALONE ? "App" : "Web"} · ID ${esc(h.utente.id)}</div>`;
+}
+function sezioneApp(riga) {
+  const r = [];
+  if (IN_TG && ver("8.0") && tg.addToHomeScreen) r.push(riga("plus", "servizio", "Aggiungi alla schermata Home", "Apri i turni con un'icona sul telefono", "tg.addToHomeScreen()"));
+  if (!IN_TG && !STANDALONE) r.push(riga("plus", "servizio", "Installa sul telefono", "Usala come un'app, anche senza Telegram", "installa()"));
+  if (!IN_TG && !DEMO) r.push(riga("lock", "riposo", "Scollega questo dispositivo", "Esci dall'app su questo telefono", "esci()"));
+  if (!IN_TG && DEMO) r.push(riga("lock", "riposo", "Esci dall'anteprima", "Torna alla schermata di accesso", "esci()"));
+  return r.length ? `<div class="sec">App</div><div class="list">${r.join("")}</div>` : "";
+}
+let promptInstalla = null;
+window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); promptInstalla = e; });
+window.addEventListener("appinstalled", () => { promptInstalla = null; toast("App installata ✓"); });
+async function installa() {
+  haptic();
+  if (promptInstalla) {
+    promptInstalla.prompt();
+    try { await promptInstalla.userChoice; } catch (_) {}
+    promptInstalla = null; return;
+  }
+  openSheet(`
+    <div class="sh-title">Installa sul telefono</div>
+    <div class="sh-sub" style="text-transform:none">Si aprirà a schermo intero, con la sua icona, come un'app.</div>
+    <ol class="steps">${IOS
+      ? `<li><div>Apri questa pagina con <b>Safari</b>.</div></li>
+         <li><div>Tocca il pulsante <b>Condividi</b> (il quadrato con la freccia verso l'alto).</div></li>
+         <li><div>Scorri e scegli <b>Aggiungi alla schermata Home</b>, poi <b>Aggiungi</b>.</div></li>`
+      : `<li><div>Apri questa pagina con <b>Chrome</b>.</div></li>
+         <li><div>Tocca il menu <b>⋮</b> in alto a destra.</div></li>
+         <li><div>Scegli <b>Installa app</b> (o <b>Aggiungi a schermata Home</b>) e conferma.</div></li>`}
+    </ol>`);
+}
+function esci() {
+  haptic();
+  if (!DEMO && store.get(K_SESS)) apiPubblica("logout", {}, { sessione: store.get(K_SESS) }).catch(() => {});
+  store.del(K_SESS); store.del(K_CACHE);
+  if (DEMO && /[?&]demo/.test(location.search)) { location.href = location.pathname; return; }
+  DEMO = false; S.home = null; S.mesi = {}; S.ferie = null;
+  vLogin();
+}
+
+/* ---------- Accesso fuori da Telegram: "Accedi con Telegram" tramite il bot ---------- */
+async function apiPubblica(action, params = {}, extra = {}) {
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify({ source: "miniapp", action, params, ...extra }),
+  });
+  const j = await res.json();
+  if (!j.ok) throw new Error(j.errore || "Errore");
+  return j.dati;
+}
+function schermataLogin(contenuto) {
+  closeSheet();
+  $("#tabbar").style.display = "none";
+  $("#refresh").style.display = "none";
+  $("#title").textContent = "";
+  $("#view").innerHTML = `<div class="full view">
+    <div class="logo">${ico("train", 38, 1.8)}</div>
+    <h2>Gestione Turni</h2>
+    <p class="muted" style="margin:0;max-width:320px">Deposito di Cervignano Smistamento</p>
+    <div class="login">${contenuto}</div>
+  </div>`;
+}
+const ICO_TG = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M21.4 4.3 18.3 19c-.2 1-.9 1.3-1.7.8l-4.7-3.5-2.3 2.2c-.3.3-.5.5-1 .5l.3-4.8 8.8-7.9c.4-.3-.1-.5-.6-.2L6.2 13 1.6 11.6c-1-.3-1-1 .2-1.5l18-6.9c.8-.3 1.6.2 1.6 1.1z"/></svg>';
+let loginTimer = null, loginCodice = null, loginScade = 0;
+function vLogin(errMsg) {
+  fermaAttesa();
+  schermataLogin(`
+    ${errMsg ? `<div class="err-box" style="margin:0 0 14px">${esc(errMsg)}</div>` : ""}
+    <button class="btn" style="background:#2AABEE" onclick="iniziaLogin(this)">${ICO_TG} Accedi con Telegram</button>
+    <p class="hint" style="text-align:center">Si aprirà il bot dei turni: conferma l'accesso e torna qui.<br>Possono entrare solo i colleghi già abilitati.</p>
+    <div style="text-align:center"><button class="link" onclick="entraDemo()">Guarda l'anteprima con dati di esempio</button></div>`);
+}
+async function iniziaLogin(btn) {
+  haptic(); busy(btn, true);
+  try {
+    const x = await apiPubblica("loginInizia");
+    loginCodice = x.codice; loginScade = Date.now() + 9.5 * 60 * 1000;
+    const link = `https://t.me/${encodeURIComponent(x.bot)}?start=login_${x.codice}`;
+    schermataLogin(`
+      <a class="btn" style="background:#2AABEE;text-decoration:none" href="${esc(link)}" target="_blank" rel="noopener" onclick="haptic()">${ICO_TG} Apri Telegram</a>
+      <div class="card" style="margin-top:16px;display:flex;gap:12px;align-items:center">
+        <span class="spinner" style="border-color:var(--line);border-top-color:var(--accent);flex:none"></span>
+        <div class="muted" style="font-size:13.5px">In attesa della conferma… Nel bot tocca <b>Avvia</b> e poi <b>✅ Conferma accesso</b>, quindi torna qui.</div>
+      </div>
+      <div style="text-align:center"><button class="link" onclick="vLogin()">Annulla</button></div>`);
+    try { window.open(link, "_blank"); } catch (_) {}
+    loginTimer = setInterval(controllaLogin, 2500);
+  } catch (e) {
+    busy(btn, false);
+    toast(e instanceof TypeError ? "Nessuna connessione" : e.message, true);
+  }
+}
+function fermaAttesa() { if (loginTimer) clearInterval(loginTimer); loginTimer = null; }
+let controllando = false;
+async function controllaLogin() {
+  if (!loginCodice || controllando) return;
+  if (Date.now() > loginScade) return vLogin("Tempo scaduto: riprova.");
+  controllando = true;
+  try {
+    const x = await apiPubblica("loginStato", { codice: loginCodice });
+    if (x.stato === "OK") {
+      fermaAttesa(); loginCodice = null;
+      store.set(K_SESS, x.sessione);
+      await caricaHome();
+      mostraApp(); render(); hapticOk(); toast("Accesso effettuato ✓");
+    } else if (x.stato === "RIFIUTATO") vLogin("Accesso rifiutato dal bot.");
+    else if (x.stato === "SCADUTO") vLogin("Il link è scaduto: riprova.");
+  } catch (e) {
+    if (e.codice === "NON_AUTORIZZATO") { fermaAttesa(); store.del(K_SESS); vBloccato(e); }
+  } finally { controllando = false; }
+}
+// quando si torna all'app da Telegram, controlla subito
+document.addEventListener("visibilitychange", () => { if (!document.hidden && loginTimer) controllaLogin(); });
+function mostraApp() {
+  $("#tabbar").style.display = "";
+  $("#refresh").style.display = "";
+  const h = location.hash.slice(1);
+  S.tab = TAB_IDS.includes(h) ? h : "home";
+}
+function entraDemo() { DEMO = true; mostraApp(); render(); ricarica(true); }
+
+function apriAnomalia() {
+  haptic();
+  openSheet(`
+    <div class="sh-title">Segnala anomalia</div>
+    <div class="sh-sub" style="text-transform:none">Descrivi il problema: verrà registrato per l'amministratore.</div>
+    <textarea class="inp" id="f-ano" placeholder="Cosa non funziona?"></textarea>
+    <p class="hint"></p>
+    <button class="btn" onclick="inviaAnomalia(this)">Invia segnalazione</button>`);
+}
+async function inviaAnomalia(btn) {
+  const testo = $("#f-ano").value.trim();
+  if (!testo) return toast("Descrivi il problema", true);
+  busy(btn, true);
+  try { await api("anomalia", { testo }); hapticOk(); closeSheet(); toast("Segnalazione inviata ✓"); }
+  catch (e) { busy(btn, false); errore(e); }
+}
+function apriBroadcast() {
+  haptic();
+  openSheet(`
+    <div class="sh-title">Messaggio a tutti</div>
+    <div class="sh-sub" style="text-transform:none">Arriva in chat a tutti i colleghi abilitati. Puoi usare *grassetto* e _corsivo_.</div>
+    <textarea class="inp" id="f-bc" placeholder="Scrivi la comunicazione…"></textarea>
+    <p class="hint"></p>
+    <button class="btn warn" onclick="inviaBroadcast(this)">${ico("mega", 19)} Invia a tutti</button>`);
+}
+async function inviaBroadcast(btn) {
+  const testo = $("#f-bc").value.trim();
+  if (!testo) return toast("Il messaggio è vuoto", true);
+  if (!(await conferma("Inviare questo messaggio a tutti i colleghi abilitati?"))) return;
+  busy(btn, true);
+  try { const x = await api("broadcast", { testo }); hapticOk(); closeSheet(); toast(`Inviato a ${x.inviati} colleghi ✓`); }
+  catch (e) { busy(btn, false); errore(e); }
+}
+function apriGuida() {
+  haptic();
+  const voce = (i, col, t, s) => `<div class="row"><span class="ic" style="background:var(--${col}-s);color:var(--${col})">${ico(i, 19)}</span><div class="main"><div class="t">${t}</div><div class="s" style="white-space:normal">${s}</div></div></div>`;
+  openSheet(`
+    <div class="sh-title">Guida all'uso</div>
+    <div class="sh-sub" style="text-transform:none">Gestione turni · Deposito di Cervignano Smistamento</div>
+    <div class="sheet-list">
+      ${voce("home", "servizio", "Home", "Il tuo turno di oggi e di domani, con i colleghi abbinati. Tocca una scheda per i dettagli.")}
+      ${voce("cal", "servizio", "Calendario", "Tutti i tuoi turni del mese a colpo d'occhio. Tocca un giorno per vedere chi è con te o modificarlo.")}
+      ${voce("edit", "servizio", "Inserisci turno", "Aggiorna il tuo turno (es. 762, RIS, R). Consentito dal " + esc(S.home.limiteInserimento) + ". Con C o Congedo finisce anche nelle ferie.")}
+      ${voce("shield", "riserva", "Riserve", "Chi è di riserva oggi e domani. Con «Avvisa le riserve» mandi una notifica solo a loro.")}
+      ${voce("sun", "ferie", "Ferie", "Ferie e congedi futuri di tutto il deposito, e il modulo per segnalare le tue.")}
+      ${voce("route", "servizio", "Tratte", "Il mantenimento delle tratte: tratti percorsi, scadenze e impianti. Si sincronizza con il tuo account Google.")}
+      ${voce("file", "altro", "Documenti", "Turni grafici, plurimensile e mensile in PDF.")}
+    </div>`);
+}
+
+/* ---------- Errori di accesso ---------- */
+function vBloccato(e) {
+  $("#tabbar").style.display = "none";
+  $("#refresh").style.display = "none";
+  $("#title").textContent = "";
+  const nonAut = e.codice === "NON_AUTORIZZATO";
+  $("#view").innerHTML = `<div class="full view"><div class="ic" style="color:var(--${nonAut ? "riserva" : "muted"})">${ico(nonAut ? "lock" : "refresh", 32)}</div>
+    <h2>${nonAut ? "Accesso non ancora autorizzato" : "Impossibile caricare i dati"}</h2>
+    <p class="muted" style="max-width:300px">${nonAut
+      ? `Scrivi /start al bot per inviare la richiesta all'amministratore.<br><br>Il tuo ID Telegram è <b>${esc(e.id)}</b>`
+      : e.codice === "SESSIONE_NON_VALIDA" ? "La sessione è scaduta. Chiudi e riapri l'app da Telegram." : esc(e instanceof TypeError ? "Controlla la connessione e riprova." : e.message)}</p>
+    ${nonAut ? "" : `<div style="width:220px;margin-top:10px"><button class="btn soft" onclick="location.reload()">Riprova</button></div>`}</div>`;
+}
+
+/* ---------- Caricamento ---------- */
+async function caricaHome() {
+  const h = await api("home");
+  S.home = h;
+  S.mesi[meseKey(h.mese.anno, h.mese.mese)] = h.mese;
+  if (!IN_TG && !DEMO) store.set(K_CACHE, JSON.stringify(h));
+  return h;
+}
+let ricaricando = false;
+async function ricarica(silenzioso) {
+  if (ricaricando) return; ricaricando = true;
+  const b = $("#refresh"); b.classList.add("spin");
+  try {
+    const h = await caricaHome();
+    if (!silenzioso) { S.ferie = null; Object.keys(S.mesi).forEach(k => { if (k !== meseKey(h.mese.anno, h.mese.mese)) delete S.mesi[k]; }); }
+    render();
+  } catch (e) {
+    if (!IN_TG && !DEMO && e.codice === "SESSIONE_NON_VALIDA") errore(e);
+    else if (!S.home || e.codice === "NON_AUTORIZZATO") vBloccato(e); else errore(e);
+  } finally { ricaricando = false; b.classList.remove("spin"); }
+}
+
+function applicaTema() {
+  const dark = IN_TG && tg.colorScheme ? tg.colorScheme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  document.documentElement.dataset.theme = dark ? "dark" : "light";
+  const cs = getComputedStyle(document.documentElement);
+  const bg = cs.getPropertyValue("--bg").trim(), card = cs.getPropertyValue("--card").trim();
+  if (ver("6.9")) { try { tg.setHeaderColor(bg); tg.setBackgroundColor(bg); } catch (_) {} }
+  if (ver("7.10") && tg.setBottomBarColor) { try { tg.setBottomBarColor(card); } catch (_) {} }
+  const meta = document.querySelector('meta[name="theme-color"]'); if (meta) meta.content = bg;
+}
+
+function init() {
+  if (IN_TG) {
+    tg.ready(); tg.expand();
+    if (ver("7.7")) tg.disableVerticalSwipes();
+    if (ver("6.1")) tg.BackButton.onClick(closeSheet);
+    tg.onEvent("themeChanged", applicaTema);
+  }
+  else matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applicaTema);
+  applicaTema();
+  $("#refresh").innerHTML = ico("refresh", 19);
+  $("#refresh").onclick = () => { haptic(); ricarica(false); };
+  $("#backdrop").onclick = closeSheet;
+  const h = location.hash.slice(1);
+  if (TAB_IDS.includes(h)) S.tab = h;
+  if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) navigator.serviceWorker.register("/sw.js").catch(() => {});
+
+  if (!IN_TG && !DEMO) {
+    if (!store.get(K_SESS)) return vLogin();
+    // mostra subito l'ultimo aggiornamento salvato, poi aggiorna dalla rete
+    try {
+      const c = JSON.parse(store.get(K_CACHE) || "null");
+      if (c) { S.home = c; S.mesi[meseKey(c.mese.anno, c.mese.mese)] = c.mese; }
+    } catch (_) {}
+  }
+  render();
+  ricarica(true);
+}
+
+/* ============================================================
+   DATI DI ESEMPIO (solo quando la pagina non è aperta da Telegram)
+   ============================================================ */
+const DEMO_SEQ = ["762", "762D", "845", "R", "R", "RIS", "RIS", "910", "910D", "R", "C", "C", "SC", "R"];
+const DEMO_COL = ["Luca Bianchi", "Giulia Verdi", "Marco Russo", "Sara Gallo", "Paolo Conti", "Elena Ricci", "Davide Marino"];
+function demoTipo(c) {
+  c = String(c || "").toUpperCase();
+  if (!c) return "vuoto"; if (c === "R") return "riposo"; if (c === "C") return "ferie";
+  if (c.startsWith("RIS")) return "riserva"; if (c === "SC") return "altro"; return "servizio";
+}
+function demoCodice(data) {
+  const d = fromIt(data); const n = Math.floor((d - new Date(d.getFullYear(), 0, 1)) / 864e5);
+  return DEMO_SEQ[n % DEMO_SEQ.length];
+}
+function demoGiorno(data) {
+  const turno = demoCodice(data), tipo = demoTipo(turno);
+  const colleghi = tipo === "servizio" ? [{ nome: DEMO_COL[0], turno: turno.replace("D", "") + "D" }, { nome: DEMO_COL[1], turno: turno.replace("D", "") }]
+    : tipo === "riserva" ? [{ nome: DEMO_COL[2], turno: "RIS 06-13" }, { nome: DEMO_COL[5], turno: "RIS 14-21" }] : [];
+  return { data, turno, tipo, caricato: true, colleghi, modificabile: fromIt(data) >= fromIt("05/10/2026") };
+}
+function demoMese(y, m) {
+  const n = new Date(y, m + 1, 0).getDate(); const giorni = [];
+  for (let g = 1; g <= n; g++) { const data = `${pad(g)}/${pad(m + 1)}/${y}`; const turno = demoCodice(data); giorni.push({ data, turno, tipo: demoTipo(turno) }); }
+  return { anno: y, mese: m, giorni };
+}
+function demoApi(action, p) {
+  const oggi = new Date(), dom = new Date(Date.now() + 864e5);
+  const ris = d => ({ data: toIt(d), caricato: true, lista: [{ nome: DEMO_COL[2], turno: "RIS 06-13" }, { nome: DEMO_COL[5], turno: "RIS 14-21" }, { nome: DEMO_COL[6], turno: "RISERVA" }] });
+  const out = {
+    home: () => ({ utente: { id: "925394691", nome: "Mario Rossi", admin: true }, oggi: demoGiorno(toIt(oggi)), domani: demoGiorno(toIt(dom)),
+      riserveOggi: ris(oggi), riserveDomani: { ...ris(dom), lista: ris(dom).lista.slice(0, 2) }, mese: demoMese(oggi.getFullYear(), oggi.getMonth()),
+      link: { grafici: "", plurimensile: "", mensile: "" }, limiteInserimento: "05/10/2026" }),
+    mese: () => demoMese(+p.anno, +p.mese),
+    giorno: () => demoGiorno(p.data),
+    ferie: () => [
+      { nome: DEMO_COL[3], dal: toIt(new Date(Date.now() + 3 * 864e5)), al: toIt(new Date(Date.now() + 9 * 864e5)), nota: "Ferie", mio: false },
+      { nome: "Mario Rossi", dal: toIt(new Date(Date.now() + 12 * 864e5)), al: toIt(new Date(Date.now() + 12 * 864e5)), nota: "Da turno: C", mio: true },
+      { nome: DEMO_COL[4], dal: toIt(new Date(Date.now() + 26 * 864e5)), al: toIt(new Date(Date.now() + 40 * 864e5)), nota: "Congedo", mio: false },
+    ],
+    inserisciTurno: () => demoGiorno(p.data), segnalaFerie: () => ({}), anomalia: () => ({}),
+    avvisaRiserve: () => ({ inviati: 3 }), broadcast: () => ({ inviati: 24 }),
+  }[action];
+  return new Promise(r => setTimeout(() => r(out()), 450));
+}
+
+init();
+</script>
+</body>
+</html>
