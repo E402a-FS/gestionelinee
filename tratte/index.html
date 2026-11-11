@@ -100,6 +100,9 @@
   .day .t{font-size:11px;font-weight:600;background:var(--accent-bg);color:var(--accent);border-radius:5px;padding:1px 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .day .c{font-size:11px;color:var(--muted)}
   .day.rest .t{background:var(--line);color:var(--muted)}
+  .day .t.sug{background:transparent;border:1px dashed currentColor;padding:0 3px}
+  .day .t.sug.rest{color:var(--muted)}
+  .day .t.sug.ok{background:var(--accent-bg)}
   @media (max-width:420px){ .day{min-height:58px;padding:4px} .day .c{display:none} .tabs button{font-size:13px} }
   .daylist{margin-top:16px}
   .dayrow{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px;cursor:pointer}
@@ -184,6 +187,7 @@
       <button id="nextM" aria-label="Mese successivo">›</button>
     </div>
     <div class="grid" id="calGrid"></div>
+    <div class="meta" id="tfInfo" style="margin-top:8px"></div>
     <div class="row" style="margin-top:10px">
       <button id="goToday" class="ghost">Oggi</button>
       <button class="primary" id="addToday">+ Turno di oggi</button>
@@ -665,6 +669,69 @@
     renderCal(); renderTurni(); renderTratte(); renderPerc(); renderLoc();
   }
 
+  // ---------- collegamento con il calendario Turni (stesso sito, stesso accesso Telegram) ----------
+  // Legge dal foglio Google il tuo turno di ogni giorno e lo propone qui: se il codice corrisponde
+  // a un turno programmato, alla registrazione del giorno vengono caricati i suoi percorsi.
+  const TURNI_API = "https://script.google.com/macros/s/AKfycbxXFsHs_qdfjbzpO2gzpDC33Hm-tPx8yutP_fIA27ry6zeuOX25DHGc_6vMcOTqWkPfHw/exec";
+  const TF_KEY = "tratte_turni_foglio";
+  let turniFoglio = {}, foglioStato = "";
+  const mesiFoglio = {};
+  try { turniFoglio = JSON.parse(localStorage.getItem(TF_KEY) || "{}"); } catch {}
+  const senzaLavoro = t => t === "riposo" || t === "ferie";
+
+  async function assicuraTurniFoglio(d) {
+    const k = d.getFullYear() + "-" + d.getMonth();
+    if (mesiFoglio[k]) return;
+    mesiFoglio[k] = true;
+    let sess = null;
+    try { sess = localStorage.getItem("turni_sessione"); } catch {}
+    if (!sess) { foglioStato = "no"; infoFoglio(); return; }
+    try {
+      const res = await fetch(TURNI_API, {
+        method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({ source: "miniapp", action: "mese", params: { anno: d.getFullYear(), mese: d.getMonth() }, sessione: sess })
+      });
+      const j = await res.json();
+      if (!j.ok) { foglioStato = j.errore === "SESSIONE_NON_VALIDA" ? "no" : "err"; infoFoglio(); return; }
+      j.dati.giorni.forEach(g => {
+        const [dd, mm, yy] = g.data.split("/"), s = `${yy}-${mm}-${dd}`;
+        if (g.turno) turniFoglio[s] = { turno: g.turno, tipo: g.tipo }; else delete turniFoglio[s];
+      });
+      try { localStorage.setItem(TF_KEY, JSON.stringify(turniFoglio)); } catch {}
+      foglioStato = "ok"; infoFoglio(); renderCal();
+    } catch {
+      delete mesiFoglio[k]; foglioStato = "off"; infoFoglio();
+    }
+  }
+  function infoFoglio() {
+    const el = $("tfInfo"); if (!el) return;
+    el.innerHTML =
+      foglioStato === "ok" ? "📋 Collegato al calendario Turni: i codici tratteggiati vengono dal foglio; quelli colorati sono turni che hai già programmato. Tocca il giorno per registrarlo."
+      : foglioStato === "no" ? `📋 Per vedere qui i tuoi turni, accedi con Telegram nella sezione <a href="/">Turni</a>.`
+      : foglioStato === "off" ? "📋 Calendario Turni non raggiungibile ora: mostro gli ultimi turni scaricati."
+      : foglioStato === "err" ? "📋 Non riesco a leggere il calendario Turni in questo momento." : "";
+  }
+  // quando torni all'app (es. dopo aver inserito un turno), riscarica i turni del mese
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) { Object.keys(mesiFoglio).forEach(k => delete mesiFoglio[k]); renderCal(); }
+  });
+  function suggerimentoFoglio(s) {
+    const f = turniFoglio[s]; if (!f) return "";
+    const ok = !senzaLavoro(f.tipo) && !!findTurno(f.turno);
+    return `<span class="t sug${senzaLavoro(f.tipo) ? " rest" : ok ? " ok" : ""}">${esc(f.turno)}</span>`;
+  }
+  function precompilaDaFoglio(f) {
+    $("dTurno").value = f.turno;
+    if (senzaLavoro(f.tipo)) {
+      $("dRest").checked = true; syncRest();
+      $("dHint").innerHTML = `<b>📋 Dal calendario Turni:</b> ${f.tipo === "ferie" ? "ferie / congedo" : "riposo"}.`;
+      return;
+    }
+    // stessa logica di quando scrivi il numero a mano: carica la programmazione o copia l'ultima volta
+    $("dTurno").dispatchEvent(new Event("change"));
+    $("dHint").insertAdjacentHTML("afterbegin", "<b>📋 Dal calendario Turni.</b> ");
+  }
+
   // ---------- calendar ----------
   let cur = new Date(); cur = new Date(cur.getFullYear(), cur.getMonth(), 1);
   $("prevM").onclick = () => { cur = new Date(cur.getFullYear(), cur.getMonth()-1, 1); renderCal(); };
@@ -673,6 +740,7 @@
   $("addToday").onclick = () => openDay(todayStr());
 
   function renderCal() {
+    assicuraTurniFoglio(cur);
     $("monthTitle").textContent = cur.toLocaleDateString("it-IT", { month:"long", year:"numeric" });
     const offset = (cur.getDay() + 6) % 7;
     const start = new Date(cur); start.setDate(1 - offset);
@@ -687,7 +755,7 @@
       const cnt = [n ? plural(n, "tratto", "tratti") : "", ni ? "🔧 manovra" : ""].filter(Boolean).join(" · ");
       html += `<button type="button" class="${cls}" data-d="${s}"><span class="n">${d.getDate()}</span>` +
         (g ? `<span class="t">${esc(g.turno || (g.riposo ? "Riposo" : ni && !n ? "Manovra" : "Turno"))}</span>` +
-             (cnt ? `<span class="c">${cnt}</span>` : "") : "") + `</button>`;
+             (cnt ? `<span class="c">${cnt}</span>` : "") : suggerimentoFoglio(s)) + `</button>`;
     }
     $("calGrid").innerHTML = html;
 
@@ -739,6 +807,7 @@
     renderVar(def);
     syncRest(); renderDayPerc(); renderChecks(); renderLocChips(); renderImpChips();
     dDay.showModal();
+    if (!docs[dayId(s)] && turniFoglio[s]) precompilaDaFoglio(turniFoglio[s]);
   }
   function syncRest(){ $("dWork").style.display = $("dRest").checked ? "none" : ""; }
   $("dRest").onchange = syncRest;
