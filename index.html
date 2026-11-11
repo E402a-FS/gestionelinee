@@ -151,6 +151,7 @@ label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin:14p
 .inp{width:100%;padding:13px 14px;border-radius:14px;border:1.5px solid var(--line);background:var(--card2);outline:none;font-size:16px;-webkit-appearance:none;appearance:none;min-height:50px}
 .inp:focus{border-color:var(--accent)}
 textarea.inp{min-height:110px;resize:none}
+select.inp{-webkit-appearance:menulist;appearance:auto}
 .chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 .chip{padding:8px 14px;border-radius:999px;background:var(--card2);border:1px solid var(--line);font-weight:600;font-size:13.5px}
 .hint{font-size:12.5px;color:var(--muted);margin:10px 2px 18px}
@@ -290,7 +291,18 @@ const breve = s => { const d = fromIt(s); return `${d.getDate()} ${MESI[d.getMon
 const iniziali = n => String(n).trim().split(/\s+/).slice(0, 2).map(x => x[0] || "").join("").toUpperCase();
 const colore = n => { let h = 0; for (const c of String(n)) h = (h * 31 + c.charCodeAt(0)) % 360; return `hsl(${h},52%,48%)`; };
 const avatar = n => `<div class="av" style="background:${colore(n)}">${esc(iniziali(n))}</div>`;
-const abbr = (c, t) => !c ? "" : t === "riserva" ? "RIS" : c.length > 5 ? c.slice(0, 5) : c;
+// Orari dei turni RIS / KS, salvati nel codice come "RIS 06:00-13:00"
+const RE_OR = /\s*(\d{1,2})[:.](\d{2})\s*-\s*(\d{1,2})[:.](\d{2})\s*$/;
+const splitOrari = c => {
+  const m = String(c || "").match(RE_OR);
+  return m ? { base: String(c).replace(RE_OR, "").trim(), ini: `${pad(m[1])}:${m[2]}`, fin: `${pad(m[3])}:${m[4]}` }
+           : { base: String(c || ""), ini: "", fin: "" };
+};
+const orariTxt = c => { const o = splitOrari(c); return o.ini ? `${o.ini}–${o.fin}` : ""; };
+const richiedeOrari = c => /^(RIS|KS)/i.test(String(c || "").trim());
+const senzaAgente = c => { const u = String(c || "").toUpperCase().trim();
+  return !u || u === "R" || u === "RIPOSO" || u === "SC" || u === "C" || /CONG|FERI/.test(u) || /^RIS/.test(u); };
+const abbr = (c, t) => { if (!c) return ""; if (t === "riserva") return "RIS"; const b = splitOrari(c).base; return b.length > 5 ? b.slice(0, 5) : b; };
 
 /* ---------- Stato ---------- */
 const S = {
@@ -411,15 +423,15 @@ function vHome() {
   <div class="greet"><div class="d">${lunga(o.data)}</div><h2>Ciao, ${esc(nome)}</h2></div>
   <button class="hero t-${o.tipo}" onclick="apriGiorno('${o.data}')">
     <div class="hero-top"><span class="badge-w">Oggi</span>${ico(t.ico, 24)}</div>
-    <div class="hero-code">${esc(o.turno || "—")}</div>
-    <div class="hero-label">${o.caricato ? t.label : "Turni non ancora caricati"}</div>
+    <div class="hero-code">${esc(splitOrari(o.turno).base || "—")}</div>
+    <div class="hero-label">${o.caricato ? t.label : "Turni non ancora caricati"}${orariTxt(o.turno) ? " · " + orariTxt(o.turno) : ""}</div>
     ${team}
   </button>
   <div class="grid2">
     <button class="card mini" onclick="apriGiorno('${d.data}')">
       <div class="lbl">Domani · ${breve(d.data)}</div>
-      <div class="val">${esc(d.turno || "—")}</div>
-      <div class="sub" style="color:var(--${d.tipo === "vuoto" ? "muted" : d.tipo})"><span class="dot" style="background:currentColor"></span>${TIPI[d.tipo].label}</div>
+      <div class="val">${esc(splitOrari(d.turno).base || "—")}</div>
+      <div class="sub" style="color:var(--${d.tipo === "vuoto" ? "muted" : d.tipo})"><span class="dot" style="background:currentColor"></span>${orariTxt(d.turno) || TIPI[d.tipo].label}</div>
     </button>
     <button class="card mini" onclick="vai('riserve')">
       <div class="lbl">Riserve oggi</div>
@@ -500,46 +512,74 @@ async function apriGiorno(data) {
     S.giorno = g;
     const t = TIPI[g.tipo];
     const col = g.colleghi.length
-      ? `<div class="sec" style="margin-top:0">${g.tipo === "riserva" ? "Altre riserve" : "In servizio con te"}</div>
-         <div class="sheet-list">${g.colleghi.map(c => `<div class="row">${avatar(c.nome)}<div class="main"><div class="t">${esc(c.nome)}</div></div><span class="code c t-${g.tipo}">${esc(c.turno)}</span></div>`).join("")}</div>`
+      ? `<div class="sec" style="margin-top:0">${g.abbinato ? "Secondo agente" : g.tipo === "riserva" ? "Altre riserve" : "In servizio con te"}</div>
+         <div class="sheet-list">${g.colleghi.map(c => `<div class="row">${avatar(c.nome)}<div class="main"><div class="t">${esc(c.nome)}${c.cambiato ? '<span class="tag">cambiato</span>' : ""}</div></div>${c.turno ? `<span class="code c t-${g.tipo}">${esc(c.turno)}</span>` : ""}</div>`).join("")}</div>`
       : (g.tipo === "servizio" || g.tipo === "riserva") ? `<p class="hint" style="margin-top:0">Nessun collega abbinato per questa data.</p>` : "";
     openSheet(`
       <div class="sh-title">Il tuo turno</div>
       <div class="sh-sub">${lunga(g.data)} ${fromIt(g.data).getFullYear()}</div>
       <div class="big t-${g.tipo}"><div class="ic">${ico(t.ico, 26)}</div>
-        <div><div class="k">${esc(g.turno || "—")}</div><div class="l">${g.caricato ? t.label : "Turni non ancora caricati"}</div></div></div>
+        <div><div class="k">${esc(splitOrari(g.turno).base || "—")}</div><div class="l">${g.caricato ? t.label : "Turni non ancora caricati"}${orariTxt(g.turno) ? " · " + orariTxt(g.turno) : ""}</div></div></div>
       ${col}
-      ${g.modificabile ? `<button class="btn soft" onclick="apriInserisci(S.giorno.data, S.giorno.turno)">${ico("edit", 19)} ${g.turno ? "Modifica turno" : "Inserisci turno"}</button>` : ""}`);
+      ${g.modificabile ? `<button class="btn soft" onclick="apriInserisci(S.giorno.data, S.giorno.turno, S.giorno.abbinato)">${ico("edit", 19)} ${g.turno ? "Modifica turno" : "Inserisci turno"}</button>` : ""}`);
   } catch (e) { closeSheet(); errore(e); }
 }
 
 /* ---------- Inserisci turno ---------- */
-function apriInserisci(data, turno) {
+function apriInserisci(data, turno, abbinato) {
   haptic();
   const limite = S.home.limiteInserimento;
   let d = data || S.home.oggi.data;
   if (fromIt(d) < fromIt(limite)) d = limite;
+  const o = splitOrari(turno);
+  const colleghi = S.home.colleghi || [];
   openSheet(`
     <div class="sh-title">${turno ? "Modifica turno" : "Inserisci turno"}</div>
     <div class="sh-sub" style="text-transform:none">Consentito dal ${limite}</div>
     <label for="f-data">Data</label>
     <input class="inp" type="date" id="f-data" min="${itToIso(limite)}" value="${itToIso(d)}">
     <label for="f-cod">Codice turno</label>
-    <input class="inp" id="f-cod" placeholder="es. 762, 762D, Riserva 06:00-13:00" value="${esc(turno || "")}" autocomplete="off" autocapitalize="characters">
-    <div class="chips">${["R", "RIS", "C", "SC"].map(c => `<button class="chip" onclick="document.getElementById('f-cod').value='${c}';haptic()">${c}</button>`).join("")}</div>
-    <p class="hint">R = riposo · RIS = riserva · C = congedo (viene registrato anche nelle ferie) · SC</p>
+    <input class="inp" id="f-cod" placeholder="es. 762, 762D, RIS, KS" value="${esc(o.base)}" autocomplete="off" autocapitalize="characters" oninput="aggiornaModulo()">
+    <div class="chips">${["R", "RIS", "KS", "C", "SC"].map(c => `<button class="chip" onclick="document.getElementById('f-cod').value='${c}';aggiornaModulo();haptic()">${c}</button>`).join("")}</div>
+    <div id="f-orari" style="display:none">
+      <div class="two">
+        <div><label for="f-ini">Inizio</label><input class="inp" type="time" id="f-ini" value="${esc(o.ini)}"></div>
+        <div><label for="f-fin">Fine</label><input class="inp" type="time" id="f-fin" value="${esc(o.fin)}"></div>
+      </div>
+    </div>
+    <div id="f-agente" style="display:none">
+      <label for="f-sec">Secondo agente</label>
+      <select class="inp" id="f-sec" onchange="this.dataset.cambiato='1'">
+        <option value="auto">Come da turno (automatico)</option>
+        ${colleghi.map(c => `<option value="${esc(c.id)}" ${c.id === abbinato ? "selected" : ""}>${esc(c.nome)}</option>`).join("")}
+      </select>
+      <p class="hint" style="margin-bottom:0">Cambialo solo se sei abbinato a un collega diverso da quello previsto: lo vedrete tutti e due.</p>
+    </div>
+    <p class="hint">R = riposo · RIS = riserva · KS · C = congedo (finisce anche nelle ferie) · SC</p>
     <button class="btn" id="f-save" onclick="salvaTurno(this)">Salva turno</button>`);
+  aggiornaModulo();
+}
+function aggiornaModulo() {
+  const cod = $("#f-cod").value.trim();
+  $("#f-orari").style.display = richiedeOrari(cod) ? "" : "none";
+  $("#f-agente").style.display = cod && !senzaAgente(cod) ? "" : "none";
 }
 async function salvaTurno(btn) {
   const iso = $("#f-data").value, codice = $("#f-cod").value.trim();
   if (!iso) return toast("Scegli una data", true);
   if (!codice) return toast("Scrivi il codice del turno", true);
-  const data = isoToIt(iso);
+  const params = { data: isoToIt(iso), codice };
+  if (richiedeOrari(codice)) {
+    params.inizio = $("#f-ini").value; params.fine = $("#f-fin").value;
+    if (!params.inizio || !params.fine) return toast("Indica l'orario di inizio e di fine", true);
+  }
+  const sec = $("#f-sec");
+  if (sec.dataset.cambiato && !senzaAgente(codice)) params.secondo = sec.value;
   busy(btn, true);
   try {
-    await api("inserisciTurno", { data, codice });
+    await api("inserisciTurno", params);
     hapticOk(); closeSheet(); toast("Turno salvato ✓");
-    const d = fromIt(data); delete S.mesi[meseKey(d.getFullYear(), d.getMonth())];
+    const d = fromIt(params.data); delete S.mesi[meseKey(d.getFullYear(), d.getMonth())];
     ricarica(true);
   } catch (e) { busy(btn, false); errore(e); }
 }
@@ -832,7 +872,7 @@ function apriGuida() {
     <div class="sheet-list">
       ${voce("home", "servizio", "Home", "Il tuo turno di oggi e di domani, con i colleghi abbinati. Tocca una scheda per i dettagli.")}
       ${voce("cal", "servizio", "Calendario", "Tutti i tuoi turni del mese a colpo d'occhio. Tocca un giorno per vedere chi è con te o modificarlo.")}
-      ${voce("edit", "servizio", "Inserisci turno", "Aggiorna il tuo turno (es. 762, RIS, R). Consentito dal " + esc(S.home.limiteInserimento) + ". Con C o Congedo finisce anche nelle ferie.")}
+      ${voce("edit", "servizio", "Inserisci turno", "Aggiorna il tuo turno (es. 762, RIS, R). Per RIS e KS indichi anche l'orario; se il secondo agente è cambiato lo scegli dal menu. Consentito dal " + esc(S.home.limiteInserimento) + ". Con C o Congedo finisce anche nelle ferie.")}
       ${voce("shield", "riserva", "Riserve", "Chi è di riserva oggi e domani. Con «Avvisa le riserve» mandi una notifica solo a loro.")}
       ${voce("sun", "ferie", "Ferie", "Ferie e congedi futuri di tutto il deposito, e il modulo per segnalare le tue.")}
       ${voce("route", "servizio", "Tratte", "Il mantenimento delle tratte: tratti percorsi, scadenze e impianti. Si sincronizza con il tuo account Google.")}
@@ -943,7 +983,7 @@ function demoApi(action, p) {
   const oggi = new Date(), dom = new Date(Date.now() + 864e5);
   const ris = d => ({ data: toIt(d), caricato: true, lista: [{ nome: DEMO_COL[2], turno: "RIS 06-13" }, { nome: DEMO_COL[5], turno: "RIS 14-21" }, { nome: DEMO_COL[6], turno: "RISERVA" }] });
   const out = {
-    home: () => ({ utente: { id: "925394691", nome: "Mario Rossi", admin: true }, oggi: demoGiorno(toIt(oggi)), domani: demoGiorno(toIt(dom)),
+    home: () => ({ colleghi: DEMO_COL.map((n, i) => ({ id: String(100 + i), nome: n })), utente: { id: "925394691", nome: "Mario Rossi", admin: true }, oggi: demoGiorno(toIt(oggi)), domani: demoGiorno(toIt(dom)),
       riserveOggi: ris(oggi), riserveDomani: { ...ris(dom), lista: ris(dom).lista.slice(0, 2) }, mese: demoMese(oggi.getFullYear(), oggi.getMonth()),
       link: { grafici: "", plurimensile: "", mensile: "" }, limiteInserimento: "05/10/2026" }),
     mese: () => demoMese(+p.anno, +p.mese),
