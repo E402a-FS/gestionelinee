@@ -653,7 +653,7 @@ function vAltro() {
   const riga = (i, col, t, s, fn) => `<button class="row" onclick="${fn}"><span class="ic" style="background:var(--${col}-s);color:var(--${col})">${ico(i, 19)}</span>
     <div class="main"><div class="t">${t}</div>${s ? `<div class="s">${s}</div>` : ""}</div><span class="chev">${ico("right", 18)}</span></button>`;
   return `
-    <div class="card row" style="padding:16px;margin-bottom:6px">${avatar(h.utente.nome)}<div class="main"><div class="t">${esc(h.utente.nome)}</div><div class="s">${h.utente.admin ? "Amministratore" : "Deposito Cervignano Smistamento"}</div></div></div>
+    <div class="card row" style="padding:16px;margin-bottom:6px">${avatar(h.utente.nome)}<div class="main"><div class="t">${esc(h.utente.nome)}</div><div class="s">${[h.utente.qualifica, h.utente.admin ? "Amministratore" : "Deposito Cervignano Smistamento"].filter(Boolean).join(" · ")}</div></div></div>
     <div class="sec">Documenti</div>
     <div class="list">
       ${riga("file", "servizio", "Turni grafici", "PDF su Google Drive", "apriLink(S.home.link.grafici)")}
