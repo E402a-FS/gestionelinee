@@ -1,6 +1,6 @@
 // Service worker unico della suite Gestione Linee (Turni + Tratte).
 // Quando pubblichi una nuova versione, aumenta il numero qui sotto (suite-v2, suite-v3, ...).
-const VERSION = "suite-v1";
+const VERSION = "suite-v2";
 const FILES = [
   "/",
   "/index.html",
