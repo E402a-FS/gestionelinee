@@ -783,7 +783,9 @@
       if (!j.ok) { foglioStato = j.errore === "SESSIONE_NON_VALIDA" ? "no" : "err"; infoFoglio(); return; }
       j.dati.giorni.forEach(g => {
         const [dd, mm, yy] = g.data.split("/"), s = `${yy}-${mm}-${dd}`;
-        if (g.turno) turniFoglio[s] = { turno: g.turno, tipo: g.tipo }; else delete turniFoglio[s];
+        // gli orari di RIS / KS ("RIS 06:00-13:00") non fanno parte del codice turno
+        const cod = String(g.turno || "").replace(/\s*\d{1,2}[:.]\d{2}\s*-\s*\d{1,2}[:.]\d{2}\s*$/, "").trim();
+        if (cod) turniFoglio[s] = { turno: cod, tipo: g.tipo }; else delete turniFoglio[s];
       });
       try { localStorage.setItem(TF_KEY, JSON.stringify(turniFoglio)); } catch {}
       foglioStato = "ok"; infoFoglio(); renderCal();
